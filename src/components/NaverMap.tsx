@@ -68,15 +68,45 @@ function escapeHtml(text: string): string {
 
 const TESLA_T_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true"><path d="M12 5.4c3.4 0 6.8.5 9.2 1.6l.8-2.2C19.1 3.7 15.6 3.2 12 3.2S4.9 3.7 2 4.8l.8 2.2C5.2 5.9 8.6 5.4 12 5.4zm0 2.3c-2.6 0-5.1.3-7.4.9l1.2 1.9c1.6-.3 3.2-.5 4.8-.6l1.4 11.4 1.4-11.4c1.6.1 3.2.3 4.8.6l1.2-1.9c-2.3-.6-4.8-.9-7.4-.9z"/></svg>`;
 
-const COMPACT_TESLA_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true"><path d="M12 5.4c3.4 0 6.8.5 9.2 1.6l.8-2.2C19.1 3.7 15.6 3.2 12 3.2S4.9 3.7 2 4.8l.8 2.2C5.2 5.9 8.6 5.4 12 5.4zm0 2.3c-2.6 0-5.1.3-7.4.9l1.2 1.9c1.6-.3 3.2-.5 4.8-.6l1.4 11.4 1.4-11.4c1.6.1 3.2.3 4.8.6l1.2-1.9c-2.3-.6-4.8-.9-7.4-.9z"/></svg>`;
+const COMPACT_TESLA_SVG = `<svg width="10" height="10" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true"><path d="M12 5.4c3.4 0 6.8.5 9.2 1.6l.8-2.2C19.1 3.7 15.6 3.2 12 3.2S4.9 3.7 2 4.8l.8 2.2C5.2 5.9 8.6 5.4 12 5.4zm0 2.3c-2.6 0-5.1.3-7.4.9l1.2 1.9c1.6-.3 3.2-.5 4.8-.6l1.4 11.4 1.4-11.4c1.6.1 3.2.3 4.8.6l1.2-1.9c-2.3-.6-4.8-.9-7.4-.9z"/></svg>`;
+
+function createDotMarkerHtml(station: NacsStationWithDistance): string {
+  const isTesla = isTeslaStation(station);
+  if (isTesla) {
+    return `
+      <div style="
+        width:10px;
+        height:10px;
+        border-radius:9999px;
+        background:#E31937;
+        border:1.5px solid #ffffff;
+        box-shadow:0 1px 4px rgba(227,25,55,0.45);
+        cursor:pointer;
+      " title="${escapeHtml(station.statNm)}"></div>
+    `;
+  }
+
+  const bg = station.availableCount > 0 ? '#059669' : '#64748b';
+  return `
+    <div style="
+      width:9px;
+      height:9px;
+      border-radius:9999px;
+      background:${bg};
+      border:1.5px solid #ffffff;
+      box-shadow:0 1px 4px rgba(15,23,42,0.3);
+      cursor:pointer;
+    " title="${escapeHtml(station.statNm)}"></div>
+  `;
+}
 
 function createCompactMarkerHtml(station: NacsStationWithDistance): string {
   const isTesla = isTeslaStation(station);
   if (isTesla) {
     return `
       <div style="
-        width:22px;
-        height:22px;
+        width:20px;
+        height:20px;
         border-radius:9999px;
         background:#E31937;
         border:2px solid #ffffff;
@@ -92,8 +122,8 @@ function createCompactMarkerHtml(station: NacsStationWithDistance): string {
   const bg = station.availableCount > 0 ? '#059669' : '#64748b';
   return `
     <div style="
-      width:16px;
-      height:16px;
+      width:14px;
+      height:14px;
       border-radius:9999px;
       background:${bg};
       border:2px solid #ffffff;
@@ -101,88 +131,6 @@ function createCompactMarkerHtml(station: NacsStationWithDistance): string {
       cursor:pointer;
     " title="${escapeHtml(station.statNm)}"></div>
   `;
-}
-
-function createClusterMarkerHtml(
-  count: number,
-  teslaCount: number,
-  nonTeslaCount: number,
-): string {
-  const size = count >= 30 ? 42 : count >= 10 ? 36 : 30;
-  const fontSize = count >= 30 ? 13 : count >= 10 ? 12 : 11;
-  const fontStyle = `font-family:-apple-system,BlinkMacSystemFont,'Pretendard','Noto Sans KR',sans-serif;font-size:${fontSize}px;font-weight:800;line-height:1;color:#ffffff;`;
-
-  if (nonTeslaCount === 0) {
-    return `
-      <div style="
-        width:${size}px;
-        height:${size}px;
-        border-radius:9999px;
-        background:#E31937;
-        border:2px solid #ffffff;
-        box-shadow:0 3px 10px rgba(227,25,55,0.4);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        cursor:pointer;
-        ${fontStyle}
-      " title="충전소 ${count}곳 (확대하려면 클릭)">${count}</div>
-    `;
-  }
-
-  if (teslaCount === 0) {
-    return `
-      <div style="
-        width:${size}px;
-        height:${size}px;
-        border-radius:9999px;
-        background:#059669;
-        border:2px solid #ffffff;
-        box-shadow:0 3px 10px rgba(5,150,105,0.38);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        cursor:pointer;
-        ${fontStyle}
-      " title="충전소 ${count}곳 (확대하려면 클릭)">${count}</div>
-    `;
-  }
-
-  const teslaDeg = Math.round((teslaCount / count) * 360);
-  return `
-    <div style="
-      width:${size}px;
-      height:${size}px;
-      padding:3px;
-      box-sizing:border-box;
-      border-radius:9999px;
-      background:conic-gradient(#E31937 0deg ${teslaDeg}deg, #059669 ${teslaDeg}deg 360deg);
-      box-shadow:0 3px 10px rgba(15,23,42,0.35);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      cursor:pointer;
-    " title="충전소 ${count}곳 · 슈퍼차저 ${teslaCount} · 일반 NACS ${nonTeslaCount}">
-      <div style="
-        width:100%;
-        height:100%;
-        border-radius:9999px;
-        background:#0f172a;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        ${fontStyle}
-      ">${count}</div>
-    </div>
-  `;
-}
-
-function getClusterCellLat(zoom: number, isCompact: boolean): number {
-  if (zoom <= 6) return isCompact ? 1.15 : 0.95;
-  if (zoom === 7) return isCompact ? 0.68 : 0.55;
-  if (zoom === 8) return isCompact ? 0.36 : 0.28;
-  if (zoom === 9) return isCompact ? 0.19 : 0.14;
-  return 0.075;
 }
 
 function createStationMarkerHtml(
@@ -460,26 +408,26 @@ export function NaverMap({
     stationMarkersRef.current = [];
 
     const selectedId = selectedStation?.statId ?? null;
-    const clusterMaxZoom = isCompactViewport ? 10 : 9;
+    const dotMaxZoom = isCompactViewport ? 9 : 8;
     const compactMaxZoom = 11;
-    const nextMarkers: NaverMarkerInstance[] = [];
 
-    const addStationMarker = (station: NacsStationWithDistance, compact: boolean) => {
+    const nextMarkers = stations.map((station) => {
       const isSelected = station.statId === selectedId;
       const isTesla = isTeslaStation(station);
-      const useCompact = compact && !isSelected;
 
-      const content = useCompact
-        ? createCompactMarkerHtml(station)
-        : createStationMarkerHtml(station, isSelected);
+      let content: string;
+      let anchor: unknown;
 
-      const anchor = useCompact
-        ? isTesla
-          ? new maps.Point(11, 11)
-          : new maps.Point(8, 8)
-        : isTesla
-          ? new maps.Point(34, 34)
-          : new maps.Point(34, 14);
+      if (isSelected || mapZoom > compactMaxZoom) {
+        content = createStationMarkerHtml(station, isSelected);
+        anchor = isTesla ? new maps.Point(34, 34) : new maps.Point(34, 14);
+      } else if (mapZoom <= dotMaxZoom) {
+        content = createDotMarkerHtml(station);
+        anchor = new maps.Point(5, 5);
+      } else {
+        content = createCompactMarkerHtml(station);
+        anchor = isTesla ? new maps.Point(10, 10) : new maps.Point(7, 7);
+      }
 
       const marker = new maps.Marker({
         position: new maps.LatLng(station.lat, station.lng),
@@ -496,85 +444,8 @@ export function NaverMap({
         onSelectRef.current(station);
       });
 
-      nextMarkers.push(marker);
-    };
-
-    if (mapZoom <= clusterMaxZoom) {
-      const cellLat = getClusterCellLat(mapZoom, isCompactViewport);
-      const cellLng = cellLat / 0.804;
-      const buckets = new Map<string, NacsStationWithDistance[]>();
-
-      let selectedInList: NacsStationWithDistance | null = null;
-      for (const station of stations) {
-        if (station.statId === selectedId) {
-          selectedInList = station;
-          continue;
-        }
-        const key = `${Math.floor(station.lat / cellLat)}:${Math.floor(station.lng / cellLng)}`;
-        const bucket = buckets.get(key);
-        if (bucket) {
-          bucket.push(station);
-        } else {
-          buckets.set(key, [station]);
-        }
-      }
-
-      for (const bucket of buckets.values()) {
-        if (bucket.length === 1) {
-          addStationMarker(bucket[0], true);
-          continue;
-        }
-
-        let latSum = 0;
-        let lngSum = 0;
-        let teslaCount = 0;
-        for (const station of bucket) {
-          latSum += station.lat;
-          lngSum += station.lng;
-          if (isTeslaStation(station)) {
-            teslaCount += 1;
-          }
-        }
-        const count = bucket.length;
-        const nonTeslaCount = count - teslaCount;
-        const centerLat = latSum / count;
-        const centerLng = lngSum / count;
-        const size = count >= 30 ? 42 : count >= 10 ? 36 : 30;
-        const centroidLatLng = new maps.LatLng(centerLat, centerLng);
-
-        const clusterMarker = new maps.Marker({
-          position: centroidLatLng,
-          map,
-          title: `충전소 ${count}곳`,
-          zIndex: 110 + Math.min(40, count),
-          icon: {
-            content: createClusterMarkerHtml(count, teslaCount, nonTeslaCount),
-            anchor: new maps.Point(size / 2, size / 2),
-          },
-        });
-
-        maps.Event.addListener(clusterMarker, 'click', () => {
-          const targetZoom = Math.min(12, mapZoom + 2);
-          if (typeof map.morph === 'function') {
-            map.morph(centroidLatLng, targetZoom, { duration: 300 });
-          } else {
-            map.setCenter(centroidLatLng);
-            map.setZoom(targetZoom, false);
-          }
-        });
-
-        nextMarkers.push(clusterMarker);
-      }
-
-      if (selectedInList) {
-        addStationMarker(selectedInList, false);
-      }
-    } else {
-      const compact = mapZoom <= compactMaxZoom;
-      for (const station of stations) {
-        addStationMarker(station, compact);
-      }
-    }
+      return marker;
+    });
 
     stationMarkersRef.current = nextMarkers;
   }, [sdkStatus, stations, selectedStation, mapZoom, isCompactViewport]);
