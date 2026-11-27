@@ -1,0 +1,309 @@
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ExternalLink, MapPin } from 'lucide-react';
+import type {
+  Coordinates,
+  NaverMapInstance,
+  NaverMarkerInstance,
+  NacsStationWithDistance,
+} from '../types';
+
+interface NaverMapProps {
+  stations: NacsStationWithDistance[];
+  selectedStation: NacsStationWithDistance | null;
+  userLocation: Coordinates | null;
+  centerTarget: { coords: Coordinates; zoom?: number; seq: number };
+  onSelectStation: (station: NacsStationWithDistance) => void;
+}
+
+type SdkStatus = 'missing_key' | 'loading' | 'ready' | 'auth_error' | 'load_error';
+
+let sdkPromise: Promise<void> | null = null;
+
+function loadNaverMapsScript(clientId: string): Promise<void> {
+  if (window.naver?.maps) {
+    return Promise.resolve();
+  }
+  if (sdkPromise) {
+    return sdkPromise;
+  }
+
+  sdkPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[data-naver-maps-sdk="true"]',
+    );
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Script load error')), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.async = true;
+    script.dataset.naverMapsSdk = 'true';
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      sdkPromise = null;
+      reject(new Error('네이버 지도 SDK 스크립트를 불러오지 못했습니다.'));
+    };
+    document.head.appendChild(script);
+  });
+
+  return sdkPromise;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function createStationMarkerHtml(
+  station: NacsStationWithDistance,
+  isSelected: boolean,
+): string {
+  const hasAvail = station.availableCount > 0;
+  const bg = isSelected ? '#0f172a' : hasAvail ? '#059669' : '#64748b';
+  const border = isSelected ? '#38bdf8' : '#ffffff';
+  const badgeText = `${station.availableCount}/${station.totalCount}`;
+  const label = station.hasPureNacs && !station.hasComboNacs ? 'NACS' : 'NACS+';
+
+  return `
+    <div style="
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:4px 8px;
+      border-radius:9999px;
+      background:${bg};
+      color:#ffffff;
+      border:2px solid ${border};
+      box-shadow:0 4px 12px rgba(15,23,42,0.28);
+      font-family:-apple-system,BlinkMacSystemFont,'Pretendard','Noto Sans KR',sans-serif;
+      font-size:12px;
+      font-weight:700;
+      line-height:1;
+      white-space:nowrap;
+      transform:${isSelected ? 'scale(1.12)' : 'scale(1)'};
+      transition:transform 0.15s ease;
+      cursor:pointer;
+    " title="${escapeHtml(station.statNm)}">
+      <span style="font-size:10px;opacity:0.9;">${label}</span>
+      <span>${badgeText}</span>
+    </div>
+  `;
+}
+
+export function NaverMap({
+  stations,
+  selectedStation,
+  userLocation,
+  centerTarget,
+  onSelectStation,
+}: NaverMapProps) {
+  const clientId = (import.meta.env.VITE_NAVER_MAP_CLIENT_ID ?? '').trim();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<NaverMapInstance | null>(null);
+  const stationMarkersRef = useRef<NaverMarkerInstance[]>([]);
+  const userMarkerRef = useRef<NaverMarkerInstance | null>(null);
+  const onSelectRef = useRef(onSelectStation);
+  onSelectRef.current = onSelectStation;
+
+  const [sdkStatus, setSdkStatus] = useState<SdkStatus>(
+    clientId ? 'loading' : 'missing_key',
+  );
+
+  useEffect(() => {
+    if (!clientId) {
+      setSdkStatus('missing_key');
+      return;
+    }
+
+    let cancelled = false;
+    window.navermap_authFailure = () => {
+      if (!cancelled) {
+        setSdkStatus('auth_error');
+      }
+    };
+
+    loadNaverMapsScript(clientId)
+      .then(() => {
+        if (!cancelled && window.naver?.maps) {
+          setSdkStatus((prev) => (prev === 'auth_error' ? 'auth_error' : 'ready'));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSdkStatus('load_error');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
+
+  useEffect(() => {
+    if (sdkStatus !== 'ready' || !containerRef.current || !window.naver?.maps || mapRef.current) {
+      return;
+    }
+
+    const { maps } = window.naver;
+    const initialCenter = new maps.LatLng(centerTarget.coords.lat, centerTarget.coords.lng);
+
+    mapRef.current = new maps.Map(containerRef.current, {
+      center: initialCenter,
+      zoom: centerTarget.zoom ?? 12,
+      minZoom: 6,
+      maxZoom: 19,
+      zoomControl: true,
+      zoomControlOptions: {
+        position: maps.Position?.TOP_RIGHT,
+      },
+      mapDataControl: false,
+      scaleControl: true,
+    });
+  }, [sdkStatus, centerTarget]);
+
+  useEffect(() => {
+    if (sdkStatus !== 'ready' || !mapRef.current || !window.naver?.maps) return;
+    if (centerTarget.seq === 0) return;
+
+    const { maps } = window.naver;
+    const latLng = new maps.LatLng(centerTarget.coords.lat, centerTarget.coords.lng);
+    mapRef.current.panTo(latLng, { duration: 350 });
+    if (centerTarget.zoom !== undefined) {
+      mapRef.current.setZoom(centerTarget.zoom, true);
+    }
+  }, [sdkStatus, centerTarget]);
+
+  useEffect(() => {
+    if (sdkStatus !== 'ready' || !mapRef.current || !window.naver?.maps) return;
+    const { maps } = window.naver;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setMap(null);
+      userMarkerRef.current = null;
+    }
+
+    if (!userLocation) return;
+
+    userMarkerRef.current = new maps.Marker({
+      position: new maps.LatLng(userLocation.lat, userLocation.lng),
+      map: mapRef.current,
+      zIndex: 200,
+      title: '내 위치',
+      icon: {
+        content: `
+          <div style="
+            width:18px;
+            height:18px;
+            border-radius:9999px;
+            background:#2563eb;
+            border:3px solid #ffffff;
+            box-shadow:0 0 0 6px rgba(37,99,235,0.24), 0 2px 6px rgba(15,23,42,0.35);
+          "></div>
+        `,
+        anchor: new maps.Point(9, 9),
+      },
+    });
+  }, [sdkStatus, userLocation]);
+
+  useEffect(() => {
+    if (sdkStatus !== 'ready' || !mapRef.current || !window.naver?.maps) return;
+    const { maps } = window.naver;
+
+    for (const marker of stationMarkersRef.current) {
+      maps.Event.clearInstanceListeners(marker);
+      marker.setMap(null);
+    }
+    stationMarkersRef.current = [];
+
+    const selectedId = selectedStation?.statId ?? null;
+
+    const nextMarkers = stations.map((station) => {
+      const isSelected = station.statId === selectedId;
+      const marker = new maps.Marker({
+        position: new maps.LatLng(station.lat, station.lng),
+        map: mapRef.current!,
+        title: station.statNm,
+        zIndex: isSelected ? 150 : station.availableCount > 0 ? 100 : 50,
+        icon: {
+          content: createStationMarkerHtml(station, isSelected),
+          anchor: new maps.Point(34, 14),
+        },
+      });
+
+      maps.Event.addListener(marker, 'click', () => {
+        onSelectRef.current(station);
+      });
+
+      return marker;
+    });
+
+    stationMarkersRef.current = nextMarkers;
+  }, [sdkStatus, stations, selectedStation]);
+
+  const currentOrigin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://<username>.github.io';
+
+  if (sdkStatus === 'missing_key' || sdkStatus === 'auth_error' || sdkStatus === 'load_error') {
+    return (
+      <div className="map-fallback">
+        <div className="map-fallback-card">
+          <div className="map-fallback-icon">
+            {sdkStatus === 'missing_key' ? <MapPin size={28} /> : <AlertTriangle size={28} />}
+          </div>
+          <h2>
+            {sdkStatus === 'missing_key'
+              ? '네이버 지도 Client ID가 설정되지 않았습니다'
+              : sdkStatus === 'auth_error'
+                ? '네이버 지도 API 인증 실패'
+                : '네이버 지도 스크립트 로드 실패'}
+          </h2>
+          {sdkStatus === 'missing_key' ? (
+            <p>
+              GitHub Repository의 <strong>Settings → Secrets and variables → Actions</strong>에{' '}
+              <code>NAVER_MAP_CLIENT_ID</code>를 추가하거나, 로컬 개발 시 <code>.env.local</code>에{' '}
+              <code>VITE_NAVER_MAP_CLIENT_ID</code>를 입력해 주세요.
+            </p>
+          ) : (
+            <p>
+              네이버 클라우드 플랫폼 콘솔의 <strong>Maps → Application → Web 서비스 URL</strong>에
+              현재 접속 도메인(<code>{currentOrigin}</code>)이 등록되어 있는지 확인해 주세요.
+              (구형 AI NAVER API가 아닌 신규 <strong>Maps</strong> 상품의 Client ID여야 합니다.)
+            </p>
+          )}
+          <div className="map-fallback-meta">
+            <span>현재 Origin</span>
+            <code>{currentOrigin}</code>
+          </div>
+          <a
+            className="map-fallback-link"
+            href="https://console.ncloud.com/maps/application"
+            target="_blank"
+            rel="noreferrer"
+          >
+            네이버 클라우드 Maps 콘솔 열기
+            <ExternalLink size={14} />
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="map-wrapper">
+      <div ref={containerRef} className="map-canvas" />
+      {sdkStatus === 'loading' && (
+        <div className="map-loading-overlay">네이버 지도를 불러오는 중...</div>
+      )}
+    </div>
+  );
+}

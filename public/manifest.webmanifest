@@ -1,0 +1,11 @@
+{
+  "name": "NACS 충전소 지도",
+  "short_name": "NACS 지도",
+  "description": "환경부 공공데이터 기반 GPS NACS(09/10) 전기차 충전소 찾기",
+  "start_url": "/nacs/",
+  "scope": "/nacs/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "ko"
+}
