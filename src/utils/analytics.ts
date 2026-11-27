@@ -12,6 +12,18 @@ function getGaWindow(): GaWindow {
   return window as unknown as GaWindow;
 }
 
+function ensureGtag(w: GaWindow): (...args: unknown[]) => void {
+  if (!w.dataLayer) {
+    w.dataLayer = [];
+  }
+  if (!w.gtag) {
+    w.gtag = function gtag(...args: unknown[]) {
+      w.dataLayer?.push(args);
+    };
+  }
+  return w.gtag;
+}
+
 export function getStoredConsent(): AnalyticsConsent {
   try {
     const val = window.localStorage.getItem(CONSENT_STORAGE_KEY);
@@ -33,20 +45,18 @@ export function saveConsent(value: 'accepted' | 'declined'): void {
 }
 
 export function enableGoogleAnalytics(): void {
-  const gaId = (import.meta.env.VITE_GA_MEASUREMENT_ID ?? '').trim();
-  if (!gaId || typeof window === 'undefined') return;
-
+  if (typeof window === 'undefined') return;
   const w = getGaWindow();
-  w[`ga-disable-${gaId}`] = false;
+  const gtag = ensureGtag(w);
 
-  if (!w.dataLayer) {
-    w.dataLayer = [];
-  }
-  if (!w.gtag) {
-    w.gtag = function gtag(...args: unknown[]) {
-      w.dataLayer?.push(args);
-    };
-  }
+  gtag('consent', 'update', {
+    analytics_storage: 'granted',
+  });
+
+  const gaId = (import.meta.env.VITE_GA_MEASUREMENT_ID ?? '').trim();
+  if (!gaId) return;
+
+  w[`ga-disable-${gaId}`] = false;
 
   const existing = document.querySelector<HTMLScriptElement>('script[data-ga4-sdk="true"]');
   if (!existing) {
@@ -56,16 +66,24 @@ export function enableGoogleAnalytics(): void {
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`;
     document.head.appendChild(script);
 
-    w.gtag('js', new Date());
-    w.gtag('config', gaId, { anonymize_ip: true });
+    gtag('js', new Date());
+    gtag('config', gaId, { anonymize_ip: true });
   }
 }
 
 export function disableGoogleAnalytics(): void {
   if (typeof window === 'undefined') return;
-  const gaId = (import.meta.env.VITE_GA_MEASUREMENT_ID ?? '').trim();
   const w = getGaWindow();
+  const gtag = ensureGtag(w);
 
+  gtag('consent', 'update', {
+    analytics_storage: 'denied',
+    ad_storage: 'denied',
+    ad_user_data: 'denied',
+    ad_personalization: 'denied',
+  });
+
+  const gaId = (import.meta.env.VITE_GA_MEASUREMENT_ID ?? '').trim();
   if (gaId) {
     w[`ga-disable-${gaId}`] = true;
   }
