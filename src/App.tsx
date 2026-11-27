@@ -350,25 +350,27 @@ export function App() {
         </div>
 
         <div className="top-actions">
-          {!isStandalone && (installPromptEvent || isIosSafari) && (
+          <div className="top-actions-left">
+            {!isStandalone && (installPromptEvent || isIosSafari) && (
+              <button
+                type="button"
+                className="install-btn"
+                onClick={() => void handleInstallClick()}
+              >
+                <Download size={15} />
+                <span>앱 설치</span>
+              </button>
+            )}
             <button
               type="button"
-              className="install-btn"
-              onClick={() => void handleInstallClick()}
+              className={`gps-btn ${gpsStatus === 'ready' ? 'active' : ''}`}
+              onClick={() => requestGps(true)}
+              disabled={gpsStatus === 'locating'}
             >
-              <Download size={15} />
-              <span>앱 설치</span>
+              <Crosshair size={16} />
+              <span>{gpsStatus === 'locating' ? '위치 확인중' : '내 위치'}</span>
             </button>
-          )}
-          <button
-            type="button"
-            className={`gps-btn ${gpsStatus === 'ready' ? 'active' : ''}`}
-            onClick={() => requestGps(true)}
-            disabled={gpsStatus === 'locating'}
-          >
-            <Crosshair size={16} />
-            <span>{gpsStatus === 'locating' ? '위치 확인중' : '내 위치'}</span>
-          </button>
+          </div>
 
           <div className="mobile-view-toggle" role="tablist" aria-label="화면 전환">
             <button
@@ -711,7 +713,7 @@ export function App() {
             </div>
             <ul>
               <li>
-                1. Safari 하단(또는 상단)의 <strong>공유 버튼(□↑)</strong>을 누릅니다.
+                1. Safari 또는 Chrome의 <strong>공유 버튼(□↑)</strong>을 누릅니다.
               </li>
               <li>
                 2. 메뉴를 아래로 내려 <strong>홈 화면에 추가</strong>를 선택합니다.
