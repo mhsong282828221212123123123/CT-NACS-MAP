@@ -61,6 +61,7 @@ export interface FilterState {
   query: string;
   type: NacsTypeFilter;
   onlySupercharger: boolean;
+  excludeSupercharger: boolean;
   onlyAvailable: boolean;
   onlyFreeParking: boolean;
   onlyPublic: boolean;

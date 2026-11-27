@@ -225,6 +225,7 @@ export function App() {
     query: '',
     type: 'all',
     onlySupercharger: false,
+    excludeSupercharger: false,
     onlyAvailable: false,
     onlyFreeParking: false,
     onlyPublic: false,
@@ -438,6 +439,7 @@ export function App() {
       if (filters.type === '09' && !st.hasPureNacs) return false;
       if (filters.type === '10' && !st.hasComboNacs) return false;
       if (filters.onlySupercharger && !isTeslaStation(st)) return false;
+      if (filters.excludeSupercharger && isTeslaStation(st)) return false;
       if (filters.onlyAvailable && (st.hasLiveStatus === false || st.availableCount === 0)) {
         return false;
       }
@@ -688,10 +690,27 @@ export function App() {
                 type="button"
                 className={`chip chip-tesla ${filters.onlySupercharger ? 'selected' : ''}`}
                 onClick={() =>
-                  setFilters((prev) => ({ ...prev, onlySupercharger: !prev.onlySupercharger }))
+                  setFilters((prev) => ({
+                    ...prev,
+                    onlySupercharger: !prev.onlySupercharger,
+                    excludeSupercharger: false,
+                  }))
                 }
               >
                 슈퍼차저만
+              </button>
+              <button
+                type="button"
+                className={`chip ${filters.excludeSupercharger ? 'selected' : ''}`}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    excludeSupercharger: !prev.excludeSupercharger,
+                    onlySupercharger: false,
+                  }))
+                }
+              >
+                슈퍼차저 제외
               </button>
               <button
                 type="button"
