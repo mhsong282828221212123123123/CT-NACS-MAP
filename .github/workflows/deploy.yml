@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    environment: 환경부키
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,12 +36,12 @@ jobs:
 
       - name: Fetch latest NACS chargers from Ministry of Environment API
         env:
-          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+          DATA_GO_KR_API_KEY: ${{ secrets.ENVIROMENT_GOV || secrets.DATA_GO_KR_API_KEY }}
         run: node scripts/fetch-nacs.mjs
 
       - name: Build web app
         env:
-          VITE_NAVER_MAP_CLIENT_ID: ${{ vars.NAVER_MAP_CLIENT_ID || secrets.NAVER_MAP_CLIENT_ID }}
+          VITE_NAVER_MAP_CLIENT_ID: ${{ secrets.NAVERMAP || vars.NAVER_MAP_CLIENT_ID || secrets.NAVER_MAP_CLIENT_ID }}
         run: npm run build
 
       - name: Setup Pages
