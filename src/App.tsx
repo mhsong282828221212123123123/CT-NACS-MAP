@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Crosshair,
   Download,
+  ExternalLink,
   List,
   Map as MapIcon,
   RefreshCw,
@@ -299,7 +300,18 @@ export function App() {
             height={34}
           />
           <div>
-            <h1>CT-NACS-MAP</h1>
+            <div className="brand-title-row">
+              <h1>CT-NACS-MAP</h1>
+              <a
+                className="brand-ext-link"
+                href="https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/kr/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Tesla 블박 뷰어
+                <ExternalLink size={11} />
+              </a>
+            </div>
             <p className="brand-subtitle">
               GPS 기반 NACS(09·10) 전기차 충전소 지도 ·{' '}
               {dataset

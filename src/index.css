@@ -68,6 +68,33 @@ body,
   letter-spacing: -0.02em;
 }
 
+.brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.brand-ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.brand-ext-link:hover {
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
 .brand-subtitle {
   margin: 0;
   font-size: 12px;
