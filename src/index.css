@@ -152,9 +152,43 @@ body,
   color: #ffffff;
 }
 
-.gps-btn:disabled {
+.gps-btn:disabled,
+.refresh-btn:disabled {
   opacity: 0.65;
   cursor: wait;
+}
+
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover {
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.refresh-btn.spinning svg {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mobile-view-toggle {
@@ -783,6 +817,11 @@ body,
 
   .mobile-view-toggle {
     display: inline-flex;
+  }
+
+  .refresh-btn {
+    width: 30px;
+    height: 30px;
   }
 
   .mobile-view-toggle button {

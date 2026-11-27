@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Crosshair,
   Download,
@@ -56,6 +56,8 @@ export function App() {
   const [dataset, setDataset] = useState<NacsDataset | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [refreshingData, setRefreshingData] = useState(false);
+  const lastFetchAtRef = useRef<number>(0);
 
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'locating' | 'ready' | 'error'>('idle');
@@ -133,21 +135,31 @@ export function App() {
     onlyPublic: false,
   });
 
-  const loadDataset = useCallback(async () => {
-    setLoadingData(true);
-    setDataError(null);
+  const loadDataset = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoadingData(true);
+      setDataError(null);
+    }
+    setRefreshingData(true);
     try {
-      const url = `${import.meta.env.BASE_URL}data/nacs.json`;
-      const res = await fetch(url, { cache: 'no-cache' });
+      const url = `${import.meta.env.BASE_URL}data/nacs.json?t=${Date.now()}`;
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) {
         throw new Error(`데이터 로드 실패 (HTTP ${res.status})`);
       }
       const json = (await res.json()) as NacsDataset;
       setDataset(json);
+      setDataError(null);
+      lastFetchAtRef.current = Date.now();
     } catch (err) {
-      setDataError(err instanceof Error ? err.message : '충전소 데이터를 불러오지 못했습니다.');
+      if (!silent) {
+        setDataError(err instanceof Error ? err.message : '충전소 데이터를 불러오지 못했습니다.');
+      }
     } finally {
-      setLoadingData(false);
+      if (!silent) {
+        setLoadingData(false);
+      }
+      setRefreshingData(false);
     }
   }, []);
 
@@ -238,6 +250,35 @@ export function App() {
       permissionStatus?.removeEventListener('change', handlePermChange);
     };
   }, [loadDataset, requestGps]);
+
+  useEffect(() => {
+    const AUTO_REFRESH_MS = 60_000;
+    const VISIBILITY_THROTTLE_MS = 20_000;
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadDataset(true);
+      }
+    }, AUTO_REFRESH_MS);
+
+    const handleResume = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        Date.now() - lastFetchAtRef.current >= VISIBILITY_THROTTLE_MS
+      ) {
+        void loadDataset(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleResume);
+    window.addEventListener('focus', handleResume);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleResume);
+      window.removeEventListener('focus', handleResume);
+    };
+  }, [loadDataset]);
 
   useEffect(() => {
     const nav = navigator as Navigator & { standalone?: boolean };
@@ -385,6 +426,16 @@ export function App() {
             >
               <Crosshair size={16} />
               <span>{gpsStatus === 'locating' ? '위치 확인중' : '내 위치'}</span>
+            </button>
+            <button
+              type="button"
+              className={`refresh-btn ${refreshingData ? 'spinning' : ''}`}
+              onClick={() => void loadDataset(true)}
+              disabled={refreshingData}
+              title="충전 상태 새로고침"
+              aria-label="충전 상태 새로고침"
+            >
+              <RefreshCw size={15} />
             </button>
           </div>
 
