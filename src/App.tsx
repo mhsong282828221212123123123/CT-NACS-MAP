@@ -5,17 +5,20 @@ import {
   Map as MapIcon,
   RefreshCw,
   Search,
+  ShieldAlert,
+  X,
   Zap,
 } from 'lucide-react';
 import { NaverMap } from './components/NaverMap';
 import { StationDetail } from './components/StationDetail';
+import { TeslaEmblem } from './components/TeslaEmblem';
 import type {
   Coordinates,
   FilterState,
   NacsDataset,
   NacsStationWithDistance,
 } from './types';
-import { calcDistanceKm, formatDistance } from './utils/geo';
+import { calcDistanceKm, formatDistance, isTeslaStation } from './utils/geo';
 
 const DEFAULT_CENTER: Coordinates = { lat: 37.5665, lng: 126.978 };
 
@@ -38,7 +41,11 @@ export function App() {
 
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'locating' | 'ready' | 'error'>('idle');
+  const [gpsPermission, setGpsPermission] = useState<'unknown' | 'prompt' | 'granted' | 'denied'>(
+    'unknown',
+  );
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
@@ -96,6 +103,7 @@ export function App() {
         };
         setUserLocation(coords);
         setGpsStatus('ready');
+        setGpsPermission('granted');
         if (moveMap) {
           setCenterTarget((prev) => ({ coords, zoom: 13, seq: prev.seq + 1 }));
         }
@@ -104,7 +112,8 @@ export function App() {
         setGpsStatus('error');
         switch (err.code) {
           case err.PERMISSION_DENIED:
-            setGpsError('위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해 주세요.');
+            setGpsPermission('denied');
+            setGpsError('위치 권한이 거부되었습니다. 브라우저 주소창 왼쪽 설정에서 위치를 허용한 뒤 다시 시도해 주세요.');
             break;
           case err.POSITION_UNAVAILABLE:
             setGpsError('현재 위치 정보를 가져올 수 없습니다.');
@@ -126,7 +135,42 @@ export function App() {
 
   useEffect(() => {
     void loadDataset();
-    requestGps(true);
+
+    let permissionStatus: PermissionStatus | null = null;
+    const handlePermChange = () => {
+      if (!permissionStatus) return;
+      setGpsPermission(permissionStatus.state);
+      if (permissionStatus.state === 'granted') {
+        requestGps(true);
+      }
+    };
+
+    if ('permissions' in navigator && typeof navigator.permissions.query === 'function') {
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((status) => {
+          permissionStatus = status;
+          setGpsPermission(status.state);
+          status.addEventListener('change', handlePermChange);
+          if (status.state !== 'denied') {
+            requestGps(true);
+          } else {
+            setGpsStatus('error');
+            setGpsError(
+              '위치 권한이 차단되어 있습니다. 브라우저 사이트 설정에서 위치를 허용한 뒤 다시 시도해 주세요.',
+            );
+          }
+        })
+        .catch(() => {
+          requestGps(true);
+        });
+    } else {
+      requestGps(true);
+    }
+
+    return () => {
+      permissionStatus?.removeEventListener('change', handlePermChange);
+    };
   }, [loadDataset, requestGps]);
 
   const stationsWithDistance = useMemo<NacsStationWithDistance[]>(() => {
@@ -228,15 +272,30 @@ export function App() {
         </div>
       </header>
 
-      {(dataset?.isSample || gpsError || dataError) && (
+      {(dataset?.isSample || (!userLocation && gpsStatus !== 'locating') || dataError) && (
         <div className="notice-strip">
           {dataset?.isSample && (
             <div className="notice-pill sample">
-              샘플 데이터 표시 중 — GitHub Secret <code>DATA_GO_KR_API_KEY</code>를 등록하면 전국
-              실데이터로 자동 전환됩니다.
+              샘플 데이터 표시 중 — <code>ENVIROMENT_GOV</code> 동기화 후 마스터 워크플로를 실행하면
+              전국 실데이터로 전환됩니다.
             </div>
           )}
-          {gpsError && <div className="notice-pill warn">{gpsError}</div>}
+          {!userLocation && gpsStatus !== 'locating' && (
+            <div className={`notice-pill ${gpsPermission === 'denied' ? 'warn' : 'gps-request'}`}>
+              <Crosshair size={14} />
+              <span>
+                {gpsError ||
+                  '내 주변 NACS 충전소를 거리순으로 찾으려면 위치 정보 권한이 필요합니다.'}
+              </span>
+              <button
+                type="button"
+                className="gps-allow-btn"
+                onClick={() => requestGps(true)}
+              >
+                {gpsPermission === 'denied' ? '위치 다시 요청' : '위치 권한 허용하기'}
+              </button>
+            </div>
+          )}
           {dataError && (
             <div className="notice-pill error">
               {dataError}{' '}
@@ -318,6 +377,7 @@ export function App() {
               stationsWithDistance.map((station) => {
                 const isSelected = station.statId === selectedId;
                 const dist = formatDistance(station.distanceKm);
+                const isTesla = isTeslaStation(station);
                 return (
                   <button
                     key={station.statId}
@@ -326,7 +386,14 @@ export function App() {
                     onClick={() => handleSelectStation(station)}
                   >
                     <div className="station-card-top">
-                      <span className="station-card-name">{station.statNm}</span>
+                      <span className="station-card-name">
+                        {isTesla && (
+                          <span className="tesla-tag" title="테슬라 슈퍼차저">
+                            <TeslaEmblem size={11} />
+                          </span>
+                        )}
+                        {station.statNm}
+                      </span>
                       {dist && <span className="station-card-dist">{dist}</span>}
                     </div>
                     <div className="station-card-addr">{station.addr}</div>
@@ -364,6 +431,65 @@ export function App() {
           )}
         </section>
       </main>
+
+      <footer className="disclaimer-bar" aria-label="법적 고지 및 면책 조항">
+        <div className="disclaimer-text">
+          <ShieldAlert size={13} />
+          <span>
+            비공식 독립 서비스 · 본 사이트는 <strong>Tesla, Inc. 및 테슬라코리아와 무관</strong>
+            하며, 제공 정보의 정확성·실시간성 및 이용 결과에 대한 어떠한 법적 책임도 지지 않습니다.
+          </span>
+        </div>
+        <button
+          type="button"
+          className="disclaimer-detail-btn"
+          onClick={() => setShowDisclaimerModal(true)}
+        >
+          법적고지 상세
+        </button>
+      </footer>
+
+      {showDisclaimerModal && (
+        <div
+          className="disclaimer-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="disclaimer-modal-title"
+          onClick={() => setShowDisclaimerModal(false)}
+        >
+          <div className="disclaimer-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="disclaimer-modal-header">
+              <h2 id="disclaimer-modal-title">법적 고지 및 면책 조항</h2>
+              <button
+                type="button"
+                className="icon-close-btn"
+                onClick={() => setShowDisclaimerModal(false)}
+                aria-label="법적 고지 닫기"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <ul>
+              <li>
+                <strong>비공식·독립 운영:</strong> 본 웹앱(CT-NACS-MAP)은 개인이 운영하는 비공식
+                서비스이며, <strong>Tesla, Inc.</strong> 및 <strong>테슬라코리아(주)</strong>와
+                제휴·후원·승인·연대 관계가 전혀 없습니다.
+              </li>
+              <li>
+                <strong>상표권 안내:</strong> 본 서비스 내에 표시되는 Tesla, Supercharger 명칭 및
+                심볼은 해당 권리자의 상표이며, 이용자에게 충전 규격 및 운영기관(한국환경공단 코드{' '}
+                <code>TE</code> 등)을 식별·안내하기 위한 정보 제공 목적으로만 사용됩니다.
+              </li>
+              <li>
+                <strong>데이터 정확성 및 면책:</strong> 충전소 위치·이용가능 여부·요금·출입제한
+                정보는 한국환경공단 공공데이터(Open API)를 주기적으로 수집해 제공하므로 실제 현장
+                상태와 다를 수 있습니다. 본 사이트의 정보 이용 또는 이용 불가로 인해 발생하는 직·간접적
+                손해에 대해 제작자 및 운영자는 어떠한 법적 책임도 부담하지 않습니다.
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

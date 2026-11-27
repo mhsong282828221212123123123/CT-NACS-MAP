@@ -95,3 +95,8 @@ export function buildTmapUrl(station: NacsStation): string {
   const name = encodeURIComponent(station.statNm);
   return `tmap://route?goalname=${name}&goalx=${station.lng}&goaly=${station.lat}`;
 }
+
+export function isTeslaStation(station: Pick<NacsStation, 'busiId' | 'busiNm'>): boolean {
+  if (station.busiId?.trim().toUpperCase() === 'TE') return true;
+  return /테슬라|tesla/i.test(station.busiNm ?? '');
+}

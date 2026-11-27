@@ -16,7 +16,9 @@ import {
   formatStatUpdDt,
   getChargerStatusMeta,
   getChargerTypeLabel,
+  isTeslaStation,
 } from '../utils/geo';
+import { TeslaEmblem } from './TeslaEmblem';
 
 interface StationDetailProps {
   station: NacsStationWithDistance;
@@ -25,12 +27,18 @@ interface StationDetailProps {
 
 export function StationDetail({ station, onClose }: StationDetailProps) {
   const distanceLabel = formatDistance(station.distanceKm);
+  const isTesla = isTeslaStation(station);
 
   return (
     <section className="detail-sheet" aria-label="충전소 상세 정보">
       <div className="detail-header">
         <div className="detail-title-group">
           <div className="detail-badges">
+            {isTesla && (
+              <span className="badge badge-tesla">
+                <TeslaEmblem size={11} /> 테슬라 슈퍼차저
+              </span>
+            )}
             {station.hasPureNacs && <span className="badge badge-nacs">NACS (09)</span>}
             {station.hasComboNacs && <span className="badge badge-combo">DC콤보+NACS (10)</span>}
             {station.maxOutput > 0 && (

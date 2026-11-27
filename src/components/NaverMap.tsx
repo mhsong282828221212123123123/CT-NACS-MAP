@@ -6,6 +6,7 @@ import type {
   NaverMarkerInstance,
   NacsStationWithDistance,
 } from '../types';
+import { isTeslaStation } from '../utils/geo';
 
 interface NaverMapProps {
   stations: NacsStationWithDistance[];
@@ -64,14 +65,69 @@ function escapeHtml(text: string): string {
     .replaceAll("'", '&#39;');
 }
 
+const TESLA_T_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true"><path d="M12 5.4c3.4 0 6.8.5 9.2 1.6l.8-2.2C19.1 3.7 15.6 3.2 12 3.2S4.9 3.7 2 4.8l.8 2.2C5.2 5.9 8.6 5.4 12 5.4zm0 2.3c-2.6 0-5.1.3-7.4.9l1.2 1.9c1.6-.3 3.2-.5 4.8-.6l1.4 11.4 1.4-11.4c1.6.1 3.2.3 4.8.6l1.2-1.9c-2.3-.6-4.8-.9-7.4-.9z"/></svg>`;
+
 function createStationMarkerHtml(
   station: NacsStationWithDistance,
   isSelected: boolean,
 ): string {
   const hasAvail = station.availableCount > 0;
+  const badgeText = `${station.availableCount}/${station.totalCount}`;
+  const isTesla = isTeslaStation(station);
+
+  if (isTesla) {
+    const redBg = isSelected ? '#7f1d1d' : hasAvail ? '#E31937' : '#9f1239';
+    const emblemBg = isSelected ? '#991b1b' : '#E31937';
+    const border = isSelected ? '#fecaca' : '#ffffff';
+
+    return `
+      <div style="
+        display:inline-flex;
+        flex-direction:column;
+        align-items:center;
+        transform:${isSelected ? 'scale(1.12)' : 'scale(1)'};
+        transition:transform 0.15s ease;
+        cursor:pointer;
+      " title="${escapeHtml(station.statNm)}">
+        <div style="
+          width:22px;
+          height:22px;
+          border-radius:9999px;
+          background:${emblemBg};
+          border:2px solid ${border};
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          box-shadow:0 3px 8px rgba(227,25,55,0.45);
+          margin-bottom:-4px;
+          position:relative;
+          z-index:2;
+        ">${TESLA_T_SVG}</div>
+        <div style="
+          display:inline-flex;
+          align-items:center;
+          gap:4px;
+          padding:4px 9px;
+          border-radius:9999px;
+          background:${redBg};
+          color:#ffffff;
+          border:2px solid ${border};
+          box-shadow:0 4px 12px rgba(227,25,55,0.35);
+          font-family:-apple-system,BlinkMacSystemFont,'Pretendard','Noto Sans KR',sans-serif;
+          font-size:12px;
+          font-weight:700;
+          line-height:1;
+          white-space:nowrap;
+        ">
+          <span style="font-size:10px;opacity:0.95;">SC</span>
+          <span>${badgeText}</span>
+        </div>
+      </div>
+    `;
+  }
+
   const bg = isSelected ? '#0f172a' : hasAvail ? '#059669' : '#64748b';
   const border = isSelected ? '#38bdf8' : '#ffffff';
-  const badgeText = `${station.availableCount}/${station.totalCount}`;
   const label = station.hasPureNacs && !station.hasComboNacs ? 'NACS' : 'NACS+';
 
   return `
@@ -229,6 +285,7 @@ export function NaverMap({
 
     const nextMarkers = stations.map((station) => {
       const isSelected = station.statId === selectedId;
+      const isTesla = isTeslaStation(station);
       const marker = new maps.Marker({
         position: new maps.LatLng(station.lat, station.lng),
         map: mapRef.current!,
@@ -236,7 +293,7 @@ export function NaverMap({
         zIndex: isSelected ? 150 : station.availableCount > 0 ? 100 : 50,
         icon: {
           content: createStationMarkerHtml(station, isSelected),
-          anchor: new maps.Point(34, 14),
+          anchor: isTesla ? new maps.Point(34, 34) : new maps.Point(34, 14),
         },
       });
 
