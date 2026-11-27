@@ -116,6 +116,7 @@ export interface NaverMapInstance {
   morph?: (latLng: unknown, zoom?: number, options?: { duration?: number }) => void;
   setCenter: (latLng: unknown) => void;
   setZoom: (zoom: number, effect?: boolean) => void;
+  getZoom?: () => number;
   getCenter: () => { lat: () => number; lng: () => number };
   destroy?: () => void;
 }
