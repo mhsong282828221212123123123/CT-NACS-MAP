@@ -1,9 +1,9 @@
-name: Sync NACS Master Data (2x/day)
+name: Sync NACS Master Data (Daily)
 
 on:
   schedule:
-    # 하루 2회 (한국시간 15:00, 03:00) 전체 NACS 마스터 데이터 수집 (~90호출/일)
-    - cron: '0 6,18 * * *'
+    # 하루 1회 (한국시간 03:00) 전체 NACS 마스터 데이터 수집 (~45호출/일)
+    - cron: '0 18 * * *'
   workflow_dispatch:
 
 permissions:
