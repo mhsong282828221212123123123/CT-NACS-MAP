@@ -10,7 +10,7 @@ import {
 
 const API_ENDPOINT = 'https://apis.data.go.kr/B552584/EvCharger/getChargerInfo';
 const SUPERCHARGE_API_URL = 'https://supercharge.info/service/supercharge/allSites';
-const CONCURRENCY = 4;
+const CONCURRENCY = 3;
 const NACS_TYPES = new Set(['09', '10']);
 
 const KR_STATE_MAP = {
@@ -370,6 +370,38 @@ async function fetchKoreaSuperchargers(existingStations) {
 
 async function main() {
   await loadEnvFiles();
+  const superchargersOnly = process.argv.includes('--superchargers-only');
+
+  if (superchargersOnly) {
+    const raw = await fs.readFile(NACS_JSON_PATH, 'utf8');
+    const existing = JSON.parse(raw);
+    const evStations = (existing.stations ?? []).filter(
+      (st) => st.dataSource !== 'supercharge.info',
+    );
+    const scStations = await fetchKoreaSuperchargers(evStations);
+    const stations = [...evStations, ...scStations].sort((a, b) =>
+      a.statNm.localeCompare(b.statNm, 'ko'),
+    );
+    const totalChargers = stations.reduce((sum, st) => sum + st.totalCount, 0);
+    const nowIso = new Date().toISOString();
+
+    const payload = {
+      updatedAt: nowIso,
+      statusUpdatedAt: existing.statusUpdatedAt || nowIso,
+      isSample: Boolean(existing.isSample),
+      source: '한국환경공단 EvCharger Open API + supercharge.info (국내 슈퍼차저)',
+      totalStations: stations.length,
+      totalChargers,
+      stations,
+    };
+
+    await fs.writeFile(NACS_JSON_PATH, JSON.stringify(payload), 'utf8');
+    console.log(
+      `슈퍼차저 병합 완료: 총 ${stations.length.toLocaleString()}곳 (기존 ${evStations.length}곳 + 슈퍼차저 ${scStations.length}곳) / ${totalChargers.toLocaleString()}기`,
+    );
+    return;
+  }
+
   const strict = process.argv.includes('--strict');
   const apiKey = process.env.DATA_GO_KR_API_KEY?.trim();
 

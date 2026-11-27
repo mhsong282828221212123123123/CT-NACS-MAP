@@ -1,14 +1,19 @@
+import { useEffect, useState } from 'react';
 import {
+  ChevronDown,
+  ChevronUp,
   Clock,
   MapPin,
   Navigation,
   Phone,
   PlugZap,
+  Share2,
   X,
   Zap,
 } from 'lucide-react';
 import type { NacsStationWithDistance } from '../types';
 import {
+  buildGoogleMapsUrl,
   buildKakaoMapUrl,
   buildNaverMapUrl,
   buildTmapUrl,
@@ -16,6 +21,7 @@ import {
   formatStatUpdDt,
   getChargerStatusMeta,
   getChargerTypeLabel,
+  isMobileDevice,
   isTeslaStation,
 } from '../utils/geo';
 import { TeslaEmblem } from './TeslaEmblem';
@@ -28,6 +34,41 @@ interface StationDetailProps {
 export function StationDetail({ station, onClose }: StationDetailProps) {
   const distanceLabel = formatDistance(station.distanceKm);
   const isTesla = isTeslaStation(station);
+  const showMobileShare = isMobileDevice();
+  const [showMoreApps, setShowMoreApps] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setShowMoreApps(false);
+    setShareFeedback(null);
+  }, [station.statId]);
+
+  const handleMobileShare = async () => {
+    const mapsUrl = buildGoogleMapsUrl(station);
+    const shareData = {
+      title: station.statNm,
+      text: `${station.statNm}\n${station.addr}`,
+      url: mapsUrl,
+    };
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+      }
+    }
+
+    try {
+      await navigator.clipboard?.writeText(mapsUrl);
+      setShareFeedback('위치 링크가 복사되었습니다.');
+    } catch {
+      window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <section className="detail-sheet" aria-label="충전소 상세 정보">
@@ -112,27 +153,61 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
         )}
       </div>
 
-      <div className="nav-actions">
-        <a
-          className="nav-btn nav-naver"
-          href={buildNaverMapUrl(station)}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <Navigation size={14} /> 네이버지도
-        </a>
-        <a
-          className="nav-btn nav-kakao"
-          href={buildKakaoMapUrl(station)}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <Navigation size={14} /> 카카오맵
-        </a>
-        <a className="nav-btn nav-tmap" href={buildTmapUrl(station)}>
-          <Navigation size={14} /> 티맵
-        </a>
-      </div>
+      {showMobileShare && (
+        <div className="mobile-share-box">
+          <div className="mobile-share-row">
+            <button
+              type="button"
+              className="share-primary-btn"
+              onClick={() => void handleMobileShare()}
+            >
+              <Share2 size={15} /> 공유 (Tesla · 앱 전송)
+            </button>
+            <button
+              type="button"
+              className="share-more-btn"
+              onClick={() => setShowMoreApps((prev) => !prev)}
+              aria-expanded={showMoreApps}
+            >
+              더보기 {showMoreApps ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          </div>
+
+          {shareFeedback && <div className="share-feedback">{shareFeedback}</div>}
+
+          {showMoreApps && (
+            <div className="share-more-grid">
+              <a
+                className="nav-btn nav-naver"
+                href={buildNaverMapUrl(station)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Navigation size={14} /> 네이버지도
+              </a>
+              <a
+                className="nav-btn nav-kakao"
+                href={buildKakaoMapUrl(station)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Navigation size={14} /> 카카오맵
+              </a>
+              <a className="nav-btn nav-tmap" href={buildTmapUrl(station)}>
+                <Navigation size={14} /> 티맵
+              </a>
+              <a
+                className="nav-btn nav-google"
+                href={buildGoogleMapsUrl(station)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Navigation size={14} /> 구글지도
+              </a>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="charger-list-section">
         <div className="charger-list-title">

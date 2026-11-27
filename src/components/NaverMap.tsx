@@ -13,6 +13,7 @@ interface NaverMapProps {
   selectedStation: NacsStationWithDistance | null;
   userLocation: Coordinates | null;
   centerTarget: { coords: Coordinates; zoom?: number; seq: number };
+  isVisible?: boolean;
   onSelectStation: (station: NacsStationWithDistance) => void;
 }
 
@@ -165,6 +166,7 @@ export function NaverMap({
   selectedStation,
   userLocation,
   centerTarget,
+  isVisible = true,
   onSelectStation,
 }: NaverMapProps) {
   const clientId = (import.meta.env.VITE_NAVER_MAP_CLIENT_ID ?? '').trim();
@@ -232,15 +234,38 @@ export function NaverMap({
   }, [sdkStatus, centerTarget]);
 
   useEffect(() => {
+    if (sdkStatus !== 'ready' || !mapRef.current || !window.naver?.maps || !isVisible) return;
+    const { maps } = window.naver;
+    const rafId = window.requestAnimationFrame(() => {
+      if (mapRef.current) {
+        maps.Event.trigger?.(mapRef.current, 'resize');
+      }
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [sdkStatus, isVisible]);
+
+  useEffect(() => {
     if (sdkStatus !== 'ready' || !mapRef.current || !window.naver?.maps) return;
     if (centerTarget.seq === 0) return;
 
     const { maps } = window.naver;
-    const latLng = new maps.LatLng(centerTarget.coords.lat, centerTarget.coords.lng);
-    mapRef.current.panTo(latLng, { duration: 350 });
-    if (centerTarget.zoom !== undefined) {
-      mapRef.current.setZoom(centerTarget.zoom, true);
-    }
+    const rafId = window.requestAnimationFrame(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      maps.Event.trigger?.(map, 'resize');
+      const latLng = new maps.LatLng(centerTarget.coords.lat, centerTarget.coords.lng);
+      if (centerTarget.zoom !== undefined) {
+        if (typeof map.morph === 'function') {
+          map.morph(latLng, centerTarget.zoom, { duration: 350 });
+        } else {
+          map.setCenter(latLng);
+          map.setZoom(centerTarget.zoom, false);
+        }
+      } else {
+        map.panTo(latLng, { duration: 350 });
+      }
+    });
+    return () => window.cancelAnimationFrame(rafId);
   }, [sdkStatus, centerTarget]);
 
   useEffect(() => {

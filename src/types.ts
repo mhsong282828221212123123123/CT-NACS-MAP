@@ -100,6 +100,7 @@ declare global {
         Event: {
           addListener: (target: unknown, eventName: string, handler: () => void) => void;
           clearInstanceListeners: (target: unknown) => void;
+          trigger?: (target: unknown, eventName: string) => void;
         };
         Position?: {
           TOP_RIGHT?: unknown;
@@ -112,6 +113,8 @@ declare global {
 
 export interface NaverMapInstance {
   panTo: (latLng: unknown, options?: { duration?: number }) => void;
+  morph?: (latLng: unknown, zoom?: number, options?: { duration?: number }) => void;
+  setCenter: (latLng: unknown) => void;
   setZoom: (zoom: number, effect?: boolean) => void;
   getCenter: () => { lat: () => number; lng: () => number };
   destroy?: () => void;

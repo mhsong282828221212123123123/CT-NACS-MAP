@@ -441,6 +441,7 @@ export function App() {
             selectedStation={selectedStation}
             userLocation={userLocation}
             centerTarget={centerTarget}
+            isVisible={mobileView === 'map'}
             onSelectStation={handleSelectStation}
           />
 

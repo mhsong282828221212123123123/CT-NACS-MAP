@@ -96,6 +96,16 @@ export function buildTmapUrl(station: NacsStation): string {
   return `tmap://route?goalname=${name}&goalx=${station.lng}&goaly=${station.lat}`;
 }
 
+export function buildGoogleMapsUrl(station: NacsStation): string {
+  return `https://maps.google.com/?q=${station.lat},${station.lng}`;
+}
+
+export function isMobileDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return true;
+  return navigator.maxTouchPoints > 1 && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+}
+
 export function isTeslaStation(station: Pick<NacsStation, 'busiId' | 'busiNm'>): boolean {
   if (station.busiId?.trim().toUpperCase() === 'TE') return true;
   return /테슬라|tesla/i.test(station.busiNm ?? '');

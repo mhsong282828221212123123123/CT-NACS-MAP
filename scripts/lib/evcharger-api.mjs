@@ -124,7 +124,7 @@ async function requestSinglePage(endpoint, encodedKey, pageNo, extraParams, maxR
           Accept: 'application/json',
           'User-Agent': 'CT-NACS-MAP/1.0',
         },
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(60000),
       });
 
       const text = await res.text();
@@ -160,7 +160,7 @@ async function requestSinglePage(endpoint, encodedKey, pageNo, extraParams, maxR
       if (err?.noRetry || attempt >= maxRetries) {
         break;
       }
-      await new Promise((r) => setTimeout(r, 800 * attempt));
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
     }
   }
 
@@ -172,7 +172,7 @@ export async function fetchEvChargerPage(
   rawKey,
   pageNo,
   extraParams = {},
-  maxRetries = 3,
+  maxRetries = 5,
 ) {
   const cleaned = sanitizeApiKey(rawKey);
   const candidates = buildKeyCandidates(rawKey);
