@@ -148,20 +148,41 @@ function groupNacsStations(rawItems) {
   const stationMap = new Map();
   let teItemCount = 0;
   const teTypeCounts = {};
+  const teStatCounts = {};
+  const teSamples = [];
 
   for (const item of rawItems) {
     if (normalizeText(item.delYn).toUpperCase() === 'Y') continue;
 
     const chgerType = normalizeText(item.chgerType).padStart(2, '0');
     const busiId = normalizeText(item.busiId).toUpperCase();
+    const busiNm = normalizeText(item.busiNm);
+    const bnm = normalizeText(item.bnm);
+    const stat = normalizeText(item.stat) || '0';
+    const isTeslaItem = busiId === 'TE' || /테슬라|tesla/i.test(`${busiNm} ${bnm}`);
 
-    if (busiId === 'TE') {
+    if (isTeslaItem) {
       teItemCount += 1;
       teTypeCounts[chgerType] = (teTypeCounts[chgerType] || 0) + 1;
+      teStatCounts[stat] = (teStatCounts[stat] || 0) + 1;
+      if (teSamples.length < 5) {
+        teSamples.push({
+          statId: normalizeText(item.statId),
+          statNm: normalizeText(item.statNm),
+          busiId,
+          busiNm: busiNm || bnm,
+          chgerType,
+          output: parseNumber(item.output),
+          stat,
+          statUpdDt: normalizeText(item.statUpdDt),
+          lastTsdt: normalizeText(item.lastTsdt),
+          lastTedt: normalizeText(item.lastTedt),
+        });
+      }
     }
 
     const includeByType = NACS_TYPES.has(chgerType);
-    const includeByTesla = busiId === 'TE' && chgerType !== '02';
+    const includeByTesla = isTeslaItem && chgerType !== '02';
     if (!includeByType && !includeByTesla) continue;
 
     const lat = Number(item.lat);
@@ -212,7 +233,6 @@ function groupNacsStations(rawItems) {
     }
 
     const output = parseNumber(item.output);
-    const stat = normalizeText(item.stat) || '0';
     const charger = {
       chgerId: normalizeText(item.chgerId) || String(station.chargers.length + 1).padStart(2, '0'),
       chgerType,
@@ -225,7 +245,7 @@ function groupNacsStations(rawItems) {
     station.chargers.push(charger);
     station.totalCount += 1;
     if (output > station.maxOutput) station.maxOutput = output;
-    if (chgerType === '09' || busiId === 'TE') station.hasPureNacs = true;
+    if (chgerType === '09' || isTeslaItem) station.hasPureNacs = true;
     if (chgerType === '10') station.hasComboNacs = true;
     if (stat === '2') station.availableCount += 1;
     if (stat === '3') station.chargingCount += 1;
@@ -234,6 +254,10 @@ function groupNacsStations(rawItems) {
   console.log(
     `환경부 API 내 테슬라(TE) 충전기 수: ${teItemCount}기 (타입 분포: ${JSON.stringify(teTypeCounts)})`,
   );
+  console.log(`테슬라 상태 분포(stat): ${JSON.stringify(teStatCounts)}`);
+  if (teSamples.length > 0) {
+    console.log(`테슬라 샘플(${teSamples.length}건): ${JSON.stringify(teSamples)}`);
+  }
 
   const stations = Array.from(stationMap.values());
   for (const station of stations) {
