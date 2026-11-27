@@ -58,15 +58,23 @@ async function fetchPageWithRetry(rawKey, pageNo, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(url, {
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'CT-NACS-MAP/1.0',
+        },
         signal: AbortSignal.timeout(30000),
       });
 
+      const text = await res.text();
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        const snippet = text.slice(0, 300).replace(/\s+/g, ' ');
+        const err = new Error(
+          `HTTP ${res.status} ${res.statusText}${snippet ? ` - ${snippet}` : ''}`,
+        );
+        err.noRetry = res.status === 401 || res.status === 403;
+        throw err;
       }
 
-      const text = await res.text();
       let data;
       try {
         data = JSON.parse(text);
@@ -86,13 +94,14 @@ async function fetchPageWithRetry(rawKey, pageNo, maxRetries = 3) {
       return { items, totalCount };
     } catch (err) {
       lastErr = err;
-      if (attempt < maxRetries) {
-        await new Promise((r) => setTimeout(r, 800 * attempt));
+      if (err?.noRetry || attempt >= maxRetries) {
+        break;
       }
+      await new Promise((r) => setTimeout(r, 800 * attempt));
     }
   }
 
-  throw new Error(`Page ${pageNo} failed after ${maxRetries} attempts: ${lastErr?.message}`);
+  throw new Error(`Page ${pageNo} failed: ${lastErr?.message}`);
 }
 
 function normalizeText(value) {
@@ -255,6 +264,12 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('NACS 데이터 수집 실패:', err);
+  const msg = err?.message ?? String(err);
+  console.error('NACS 데이터 수집 실패:', msg);
+  if (msg.includes('SERVICE_KEY_IS_NOT_REGISTERED_ERROR')) {
+    console.error(
+      '안내: 공공데이터포털 신규 발급 인증키는 서버 동기화에 10~60분 정도 걸릴 수 있습니다. ENVIROMENT_GOV 값 확인 후 잠시 뒤 워크플로를 다시 실행해 주세요.',
+    );
+  }
   process.exit(1);
 });
