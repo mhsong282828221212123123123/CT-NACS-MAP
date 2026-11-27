@@ -48,14 +48,20 @@ function getDatasetTimestamp(dataset) {
   return Number.isFinite(ts) ? ts : 0;
 }
 
+function hasSuperchargerData(dataset) {
+  return Boolean(dataset?.stations?.some((st) => st.dataSource === 'supercharge.info'));
+}
+
 function pickBaseDataset(localData, liveData) {
   const candidates = [localData, liveData].filter((d) => d && Array.isArray(d.stations));
   if (candidates.length === 0) return null;
 
   const nonSample = candidates.filter((d) => d.isSample === false);
   const pool = nonSample.length > 0 ? nonSample : candidates;
-  pool.sort((a, b) => getDatasetTimestamp(b) - getDatasetTimestamp(a));
-  return pool[0];
+  const withSc = pool.filter(hasSuperchargerData);
+  const finalPool = withSc.length > 0 ? withSc : pool;
+  finalPool.sort((a, b) => getDatasetTimestamp(b) - getDatasetTimestamp(a));
+  return finalPool[0];
 }
 
 async function main() {

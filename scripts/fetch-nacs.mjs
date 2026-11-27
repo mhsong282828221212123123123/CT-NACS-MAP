@@ -387,7 +387,7 @@ async function main() {
 
     const payload = {
       updatedAt: nowIso,
-      statusUpdatedAt: existing.statusUpdatedAt || nowIso,
+      statusUpdatedAt: nowIso,
       isSample: Boolean(existing.isSample),
       source: '한국환경공단 EvCharger Open API + supercharge.info (국내 슈퍼차저)',
       totalStations: stations.length,
