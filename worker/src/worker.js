@@ -5,8 +5,8 @@ const KV_SNAPSHOT_KEY = 'status_snapshot';
 const KV_MASTER_INDEX_KEY = 'master_index';
 
 const MASTER_TTL_MS = 6 * 60 * 60 * 1000;
-const BATCH_SIZE = 30;
-const BATCH_CONCURRENCY = 5;
+const BATCH_SIZE = 40;
+const BATCH_CONCURRENCY = 8;
 const MAX_STATUS_PAGES = 3;
 const PERIOD_MINUTES = '10';
 const NUM_OF_ROWS = 9999;
@@ -308,11 +308,20 @@ async function runSync(env) {
       const statId = normalizeText(item.statId);
       const chgerId = normalizeText(item.chgerId);
       if (!statId || !chgerId || !stations[statId]) continue;
-      if (!stations[statId].chargers[chgerId]) continue;
+      const prev = stations[statId].chargers[chgerId];
+      if (!prev) continue;
+
+      const nextStat = normalizeText(item.stat) || '0';
+      const nextUpd = normalizeText(item.statUpdDt);
+      if (prev.statUpdDt && nextUpd && nextUpd < prev.statUpdDt) {
+        continue;
+      }
+
       stations[statId].chargers[chgerId] = {
-        ...stations[statId].chargers[chgerId],
-        stat: normalizeText(item.stat) || '0',
-        statUpdDt: normalizeText(item.statUpdDt) || stations[statId].chargers[chgerId].statUpdDt,
+        ...prev,
+        stat: nextStat,
+        statUpdDt: nextUpd || prev.statUpdDt,
+        nowTsdt: nextStat === '3' ? prev.nowTsdt : '',
       };
       periodMatched += 1;
     }
@@ -347,14 +356,28 @@ async function runSync(env) {
           for (const item of page.items) {
             if (normalizeText(item.statId) !== statId) continue;
             const chgerId = normalizeText(item.chgerId);
-            if (!chgerId || !stations[statId].chargers[chgerId]) continue;
+            const prev = stations[statId].chargers[chgerId];
+            if (!chgerId || !prev) continue;
             const nextState = extractChargerState(item);
+            const keepPrev =
+              Boolean(prev.statUpdDt && nextState.statUpdDt && nextState.statUpdDt < prev.statUpdDt);
+            const winningStat = keepPrev ? prev.stat : nextState.stat;
+            const winningUpd = keepPrev ? prev.statUpdDt : nextState.statUpdDt || prev.statUpdDt;
+            const winningLastTsdt =
+              prev.lastTsdt && (!nextState.lastTsdt || prev.lastTsdt > nextState.lastTsdt)
+                ? prev.lastTsdt
+                : nextState.lastTsdt || prev.lastTsdt;
+            const winningLastTedt =
+              prev.lastTedt && (!nextState.lastTedt || prev.lastTedt > nextState.lastTedt)
+                ? prev.lastTedt
+                : nextState.lastTedt || prev.lastTedt;
+
             stations[statId].chargers[chgerId] = {
-              stat: nextState.stat,
-              statUpdDt: nextState.statUpdDt || stations[statId].chargers[chgerId].statUpdDt,
-              lastTsdt: nextState.lastTsdt || stations[statId].chargers[chgerId].lastTsdt,
-              lastTedt: nextState.lastTedt || stations[statId].chargers[chgerId].lastTedt,
-              nowTsdt: nextState.nowTsdt || stations[statId].chargers[chgerId].nowTsdt,
+              stat: winningStat,
+              statUpdDt: winningUpd,
+              lastTsdt: winningLastTsdt,
+              lastTedt: winningLastTedt,
+              nowTsdt: winningStat === '3' ? nextState.nowTsdt || prev.nowTsdt : '',
             };
           }
           batchSucceeded += 1;
@@ -394,119 +417,129 @@ export default {
       return jsonResponse({ ok: false, error: 'Method Not Allowed' }, 405, request, env);
     }
 
-    const url = new URL(request.url);
-    const apiKey = (env.DATA_GO_KR_API_KEY ?? '').trim();
+    try {
+      const url = new URL(request.url);
+      const apiKey = (env.DATA_GO_KR_API_KEY ?? '').trim();
 
-    if (url.pathname === '/' || url.pathname === '/health') {
-      const snapshot = env.STATUS_KV
-        ? await env.STATUS_KV.get(KV_SNAPSHOT_KEY, { type: 'json' }).catch(() => null)
-        : null;
-      return jsonResponse(
-        {
+      if (url.pathname === '/' || url.pathname === '/health') {
+        const snapshot = env.STATUS_KV
+          ? await env.STATUS_KV.get(KV_SNAPSHOT_KEY, { type: 'json' }).catch(() => null)
+          : null;
+        return jsonResponse(
+          {
+            ok: true,
+            configured: Boolean(apiKey),
+            updatedAt: snapshot?.updatedAt ?? null,
+            stationCount: snapshot?.stationCount ?? 0,
+          },
+          200,
+          request,
+          env,
+          { 'Cache-Control': 'no-store' },
+        );
+      }
+
+      if (!apiKey) {
+        return jsonResponse(
+          { ok: false, configured: false, error: 'DATA_GO_KR_API_KEY not configured' },
+          503,
+          request,
+          env,
+          { 'Cache-Control': 'no-store' },
+        );
+      }
+
+      if (url.pathname === '/status') {
+        let snapshot = await env.STATUS_KV.get(KV_SNAPSHOT_KEY, { type: 'json' });
+        if (!snapshot) {
+          snapshot = await runSync(env);
+        }
+        return jsonResponse(snapshot, 200, request, env, {
+          'Cache-Control': 'no-store',
+        });
+      }
+
+      if (url.pathname === '/station') {
+        const statId = normalizeText(url.searchParams.get('statId'));
+        if (!/^[A-Za-z0-9_-]{2,40}$/.test(statId)) {
+          return jsonResponse({ ok: false, error: 'Invalid statId' }, 400, request, env);
+        }
+
+        const cacheKey = new Request(
+          `https://cache.ct-nacs-status.local/station?statId=${encodeURIComponent(statId)}`,
+        );
+        const cachedRes = await caches.default.match(cacheKey);
+        if (cachedRes) {
+          const body = await cachedRes.text();
+          return new Response(body, {
+            status: cachedRes.status,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': `public, max-age=${STATION_CACHE_TTL_SECONDS}`,
+              'X-Worker-Cache': 'HIT',
+              ...getCorsHeaders(request, env),
+            },
+          });
+        }
+
+        const page = await fetchEvChargerPage(
+          INFO_ENDPOINT,
+          apiKey,
+          1,
+          { statId, numOfRows: '100' },
+          2,
+        );
+
+        const chargers = {};
+        for (const item of page.items) {
+          if (normalizeText(item.statId) !== statId) continue;
+          const chgerId = normalizeText(item.chgerId);
+          if (!chgerId) continue;
+          chargers[chgerId] = extractChargerState(item);
+        }
+
+        const payload = {
           ok: true,
-          configured: Boolean(apiKey),
-          updatedAt: snapshot?.updatedAt ?? null,
-          stationCount: snapshot?.stationCount ?? 0,
-        },
-        200,
-        request,
-        env,
-        { 'Cache-Control': 'no-store' },
-      );
-    }
+          statId,
+          fetchedAt: new Date().toISOString(),
+          chargers,
+        };
+        const serialized = JSON.stringify(payload);
 
-    if (!apiKey) {
-      return jsonResponse(
-        { ok: false, configured: false, error: 'DATA_GO_KR_API_KEY not configured' },
-        503,
-        request,
-        env,
-        { 'Cache-Control': 'no-store' },
-      );
-    }
+        ctx.waitUntil(
+          caches.default.put(
+            cacheKey,
+            new Response(serialized, {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Cache-Control': `public, max-age=${STATION_CACHE_TTL_SECONDS}`,
+              },
+            }),
+          ),
+        );
 
-    if (url.pathname === '/status') {
-      let snapshot = await env.STATUS_KV.get(KV_SNAPSHOT_KEY, { type: 'json' });
-      if (!snapshot) {
-        snapshot = await runSync(env);
-      }
-      return jsonResponse(snapshot, 200, request, env, {
-        'Cache-Control': 'public, max-age=30',
-      });
-    }
-
-    if (url.pathname === '/station') {
-      const statId = normalizeText(url.searchParams.get('statId'));
-      if (!/^[A-Za-z0-9_-]{2,40}$/.test(statId)) {
-        return jsonResponse({ ok: false, error: 'Invalid statId' }, 400, request, env);
-      }
-
-      const cacheKey = new Request(
-        `https://cache.ct-nacs-status.local/station?statId=${encodeURIComponent(statId)}`,
-      );
-      const cachedRes = await caches.default.match(cacheKey);
-      if (cachedRes) {
-        const body = await cachedRes.text();
-        return new Response(body, {
-          status: cachedRes.status,
+        return new Response(serialized, {
+          status: 200,
           headers: {
             'Content-Type': 'application/json; charset=utf-8',
             'Cache-Control': `public, max-age=${STATION_CACHE_TTL_SECONDS}`,
-            'X-Worker-Cache': 'HIT',
+            'X-Worker-Cache': 'MISS',
             ...getCorsHeaders(request, env),
           },
         });
       }
 
-      const page = await fetchEvChargerPage(
-        INFO_ENDPOINT,
-        apiKey,
-        1,
-        { statId, numOfRows: '100' },
-        2,
+      return jsonResponse({ ok: false, error: 'Not Found' }, 404, request, env);
+    } catch (err) {
+      return jsonResponse(
+        { ok: false, error: err?.message ?? 'Upstream error' },
+        502,
+        request,
+        env,
+        { 'Cache-Control': 'no-store' },
       );
-
-      const chargers = {};
-      for (const item of page.items) {
-        if (normalizeText(item.statId) !== statId) continue;
-        const chgerId = normalizeText(item.chgerId);
-        if (!chgerId) continue;
-        chargers[chgerId] = extractChargerState(item);
-      }
-
-      const payload = {
-        ok: true,
-        statId,
-        fetchedAt: new Date().toISOString(),
-        chargers,
-      };
-      const serialized = JSON.stringify(payload);
-
-      ctx.waitUntil(
-        caches.default.put(
-          cacheKey,
-          new Response(serialized, {
-            status: 200,
-            headers: {
-              'Content-Type': 'application/json; charset=utf-8',
-              'Cache-Control': `public, max-age=${STATION_CACHE_TTL_SECONDS}`,
-            },
-          }),
-        ),
-      );
-
-      return new Response(serialized, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': `public, max-age=${STATION_CACHE_TTL_SECONDS}`,
-          'X-Worker-Cache': 'MISS',
-          ...getCorsHeaders(request, env),
-        },
-      });
     }
-
-    return jsonResponse({ ok: false, error: 'Not Found' }, 404, request, env);
   },
 
   async scheduled(_controller, env, ctx) {

@@ -63,23 +63,37 @@ interface LiveStatusSnapshot {
 function applyChargerPatch(
   charger: NacsStation['chargers'][number],
   patch: LiveChargerPatch,
+  preferNewer = false,
 ) {
+  if (
+    preferNewer &&
+    charger.statUpdDt &&
+    patch.statUpdDt &&
+    patch.statUpdDt < charger.statUpdDt
+  ) {
+    return charger;
+  }
+  const nextStat = patch.stat || charger.stat;
   return {
     ...charger,
-    stat: patch.stat || charger.stat,
+    stat: nextStat,
     statUpdDt: patch.statUpdDt || charger.statUpdDt,
     lastTsdt: patch.lastTsdt || charger.lastTsdt,
     lastTedt: patch.lastTedt || charger.lastTedt,
-    nowTsdt: patch.nowTsdt || charger.nowTsdt,
+    nowTsdt: nextStat === '3' ? patch.nowTsdt || charger.nowTsdt : '',
   };
 }
 
-function mergeStatusSnapshot(dataset: NacsDataset, snapshot: LiveStatusSnapshot): NacsDataset {
+function mergeStatusSnapshot(
+  dataset: NacsDataset,
+  snapshot: LiveStatusSnapshot,
+  skipStatIds?: Set<string>,
+): NacsDataset {
   const liveStations = snapshot.stations;
   if (!liveStations) return dataset;
 
   const stations = dataset.stations.map((st) => {
-    if (st.hasLiveStatus === false) return st;
+    if (st.hasLiveStatus === false || skipStatIds?.has(st.statId)) return st;
     const patch = liveStations[st.statId]?.chargers;
     if (!patch) return st;
 
@@ -87,7 +101,7 @@ function mergeStatusSnapshot(dataset: NacsDataset, snapshot: LiveStatusSnapshot)
     let chargingCount = 0;
     const chargers = st.chargers.map((ch) => {
       const chPatch = patch[ch.chgerId];
-      const next = chPatch ? applyChargerPatch(ch, chPatch) : ch;
+      const next = chPatch ? applyChargerPatch(ch, chPatch, true) : ch;
       if (next.stat === '2') availableCount += 1;
       if (next.stat === '3') chargingCount += 1;
       return next;
@@ -122,7 +136,7 @@ function mergeSingleStationStatus(
     let chargingCount = 0;
     const chargers = st.chargers.map((ch) => {
       const chPatch = liveChargers[ch.chgerId];
-      const next = chPatch ? applyChargerPatch(ch, chPatch) : ch;
+      const next = chPatch ? applyChargerPatch(ch, chPatch, false) : ch;
       if (next.stat === '2') availableCount += 1;
       if (next.stat === '3') chargingCount += 1;
       return next;
@@ -153,6 +167,9 @@ export function App() {
   const [stationLiveCheckedAt, setStationLiveCheckedAt] = useState<Record<string, string>>({});
   const lastFetchAtRef = useRef<number>(0);
   const stationReqSeqRef = useRef<number>(0);
+  const datasetRef = useRef<NacsDataset | null>(null);
+  datasetRef.current = dataset;
+  const recentLiveStationRef = useRef<Record<string, number>>({});
 
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'locating' | 'ready' | 'error'>('idle');
@@ -210,6 +227,8 @@ export function App() {
   }, []);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
   const [centerTarget, setCenterTarget] = useState<{
     coords: Coordinates;
@@ -238,16 +257,35 @@ export function App() {
     }
     setRefreshingData(true);
     try {
-      const masterUrl = `${import.meta.env.BASE_URL}data/nacs.json?t=${Date.now()}`;
       const statusPromise = STATUS_API_BASE
-        ? fetch(`${STATUS_API_BASE}/status`, {
+        ? fetch(`${STATUS_API_BASE}/status?t=${Date.now()}`, {
             cache: 'no-store',
-            signal: AbortSignal.timeout(8000),
+            signal: AbortSignal.timeout(10000),
           })
             .then(async (r) => (r.ok ? ((await r.json()) as LiveStatusSnapshot) : null))
             .catch(() => null)
         : Promise.resolve(null);
 
+      if (silent && datasetRef.current) {
+        const liveSnapshot = await statusPromise;
+        if (liveSnapshot?.ok && liveSnapshot.stations) {
+          const nowMs = Date.now();
+          const skipIds = new Set<string>();
+          for (const [id, ts] of Object.entries(recentLiveStationRef.current)) {
+            if (nowMs - ts < 2 * 60 * 1000) {
+              skipIds.add(id);
+            }
+          }
+          setDataset((prev) =>
+            prev ? mergeStatusSnapshot(prev, liveSnapshot, skipIds) : prev,
+          );
+        }
+        setDataError(null);
+        lastFetchAtRef.current = Date.now();
+        return;
+      }
+
+      const masterUrl = `${import.meta.env.BASE_URL}data/nacs.json?t=${Date.now()}`;
       const [res, liveSnapshot] = await Promise.all([
         fetch(masterUrl, { cache: 'no-store' }),
         statusPromise,
@@ -477,25 +515,17 @@ export function App() {
     [stationsWithDistance, selectedId],
   );
 
-  const handleSelectStation = useCallback((station: NacsStationWithDistance) => {
-    setSelectedId(station.statId);
-    setMobileView('map');
-    setCenterTarget((prev) => ({
-      coords: { lat: station.lat, lng: station.lng },
-      zoom: 15,
-      seq: prev.seq + 1,
-    }));
-
+  const refreshSingleStation = useCallback((statId: string) => {
     const seq = ++stationReqSeqRef.current;
-    if (!STATUS_API_BASE || station.hasLiveStatus === false) {
+    if (!STATUS_API_BASE) {
       setStationLiveChecking(false);
       return;
     }
 
     setStationLiveChecking(true);
-    fetch(`${STATUS_API_BASE}/station?statId=${encodeURIComponent(station.statId)}`, {
+    fetch(`${STATUS_API_BASE}/station?statId=${encodeURIComponent(statId)}&t=${Date.now()}`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(10000),
     })
       .then(async (res) => {
         if (!res.ok) return null;
@@ -507,13 +537,14 @@ export function App() {
       })
       .then((payload) => {
         if (!payload?.ok || !payload.chargers) return;
+        recentLiveStationRef.current[statId] = Date.now();
         setDataset((prev) =>
-          prev ? mergeSingleStationStatus(prev, station.statId, payload.chargers!) : prev,
+          prev ? mergeSingleStationStatus(prev, statId, payload.chargers!) : prev,
         );
         if (payload.fetchedAt) {
           setStationLiveCheckedAt((prev) => ({
             ...prev,
-            [station.statId]: payload.fetchedAt!,
+            [statId]: payload.fetchedAt!,
           }));
         }
       })
@@ -526,6 +557,35 @@ export function App() {
         }
       });
   }, []);
+
+  const handleManualRefresh = useCallback(() => {
+    void loadDataset(true);
+    const curId = selectedIdRef.current;
+    const curStation = datasetRef.current?.stations.find((s) => s.statId === curId);
+    if (curStation && curStation.hasLiveStatus !== false) {
+      refreshSingleStation(curStation.statId);
+    }
+  }, [loadDataset, refreshSingleStation]);
+
+  const handleSelectStation = useCallback(
+    (station: NacsStationWithDistance) => {
+      setSelectedId(station.statId);
+      setMobileView('map');
+      setCenterTarget((prev) => ({
+        coords: { lat: station.lat, lng: station.lng },
+        zoom: 15,
+        seq: prev.seq + 1,
+      }));
+
+      if (station.hasLiveStatus === false) {
+        stationReqSeqRef.current += 1;
+        setStationLiveChecking(false);
+        return;
+      }
+      refreshSingleStation(station.statId);
+    },
+    [refreshSingleStation],
+  );
 
   const handleCloseStation = useCallback(() => {
     stationReqSeqRef.current += 1;
@@ -590,7 +650,7 @@ export function App() {
             <button
               type="button"
               className={`refresh-btn ${refreshingData ? 'spinning' : ''}`}
-              onClick={() => void loadDataset(true)}
+              onClick={handleManualRefresh}
               disabled={refreshingData}
               title="충전 상태 새로고침"
               aria-label="충전 상태 새로고침"

@@ -35,6 +35,12 @@ interface StationDetailProps {
   onClose: () => void;
 }
 
+function parseKstYmdhms(raw: string): number {
+  if (!raw || raw.length < 14) return Number.NaN;
+  const iso = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T${raw.slice(8, 10)}:${raw.slice(10, 12)}:${raw.slice(12, 14)}+09:00`;
+  return Date.parse(iso);
+}
+
 export function StationDetail({
   station,
   statusUpdatedAt,
@@ -285,11 +291,23 @@ export function StationDetail({
               const formattedNow = formatStatUpdDt(charger.nowTsdt ?? '');
               const formattedEnd = formatStatUpdDt(charger.lastTedt ?? '');
               const formattedUpd = formatStatUpdDt(charger.statUpdDt ?? '');
+              const updTs = parseKstYmdhms(charger.statUpdDt ?? '');
+              const endTs = parseKstYmdhms(charger.lastTedt ?? '');
+              const nowTs = parseKstYmdhms(charger.nowTsdt ?? '');
+              const maxDriftMs = 30 * 60 * 1000;
 
               let eventLabel = '';
-              if (charger.stat === '3' && formattedNow) {
+              if (
+                charger.stat === '3' &&
+                formattedNow &&
+                (!Number.isFinite(updTs) || !Number.isFinite(nowTs) || updTs - nowTs <= maxDriftMs)
+              ) {
                 eventLabel = `충전 시작 ${formattedNow}`;
-              } else if (charger.stat === '2' && formattedEnd) {
+              } else if (
+                charger.stat === '2' &&
+                formattedEnd &&
+                (!Number.isFinite(updTs) || !Number.isFinite(endTs) || updTs - endTs <= maxDriftMs)
+              ) {
                 eventLabel = `최근 종료 ${formattedEnd}`;
               } else if (formattedUpd) {
                 eventLabel = `상태변경 ${formattedUpd}`;
