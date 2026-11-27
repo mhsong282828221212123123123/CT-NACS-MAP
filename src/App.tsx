@@ -25,6 +25,13 @@ import {
   getOperatorShortName,
   isTeslaStation,
 } from './utils/geo';
+import {
+  type AnalyticsConsent,
+  disableGoogleAnalytics,
+  enableGoogleAnalytics,
+  getStoredConsent,
+  saveConsent,
+} from './utils/analytics';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -62,6 +69,27 @@ export function App() {
   );
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIosInstallGuide, setShowIosInstallGuide] = useState(false);
+  const [analyticsConsent, setAnalyticsConsent] = useState<AnalyticsConsent>(() =>
+    getStoredConsent(),
+  );
+
+  useEffect(() => {
+    if (analyticsConsent === 'accepted') {
+      enableGoogleAnalytics();
+    }
+  }, [analyticsConsent]);
+
+  const handleAcceptAnalytics = useCallback(() => {
+    saveConsent('accepted');
+    setAnalyticsConsent('accepted');
+    enableGoogleAnalytics();
+  }, []);
+
+  const handleDeclineAnalytics = useCallback(() => {
+    saveConsent('declined');
+    setAnalyticsConsent('declined');
+    disableGoogleAnalytics();
+  }, []);
 
   const isIosSafari = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
@@ -557,6 +585,34 @@ export function App() {
         </button>
       </footer>
 
+      {analyticsConsent === 'unset' && (
+        <aside className="consent-banner" role="region" aria-label="쿠키 및 방문 통계 동의">
+          <div className="consent-banner-text">
+            <strong>쿠키 및 방문 통계(Google Analytics) 안내</strong>
+            <span>
+              서비스 개선을 위해 쿠키 기반 익명 방문 통계를 사용합니다. GPS 위치 정보는 브라우저
+              내에서만 사용되며 외부 서버로 전송되지 않습니다.
+            </span>
+          </div>
+          <div className="consent-actions">
+            <button
+              type="button"
+              className="consent-btn-decline"
+              onClick={handleDeclineAnalytics}
+            >
+              거부
+            </button>
+            <button
+              type="button"
+              className="consent-btn-accept"
+              onClick={handleAcceptAnalytics}
+            >
+              동의
+            </button>
+          </div>
+        </aside>
+      )}
+
       {showDisclaimerModal && (
         <div
           className="disclaimer-modal-backdrop"
@@ -593,6 +649,40 @@ export function App() {
                 정보는 한국환경공단 공공데이터(Open API)를 주기적으로 수집해 제공하므로 실제 현장
                 상태와 다를 수 있습니다. 본 사이트의 정보 이용 또는 이용 불가로 인해 발생하는 직·간접적
                 손해에 대해 제작자 및 운영자는 어떠한 법적 책임도 부담하지 않습니다.
+              </li>
+              <li>
+                <strong>개인정보·위치정보 및 Google Analytics 안내:</strong> 사용자의 GPS 좌표는
+                브라우저 내에서 거리 계산에만 쓰이며 서버로 전송·저장되지 않습니다. Google Analytics
+                방문 통계 쿠키는 이용자가 동의한 경우에만 동작하며 언제든 변경할 수 있습니다. (현재
+                상태:{' '}
+                <strong>
+                  {analyticsConsent === 'accepted'
+                    ? '동의함'
+                    : analyticsConsent === 'declined'
+                      ? '거부함'
+                      : '미선택'}
+                </strong>
+                )
+                <div className="consent-modal-controls">
+                  <button
+                    type="button"
+                    className={`consent-btn-accept ${
+                      analyticsConsent === 'accepted' ? 'is-current' : ''
+                    }`}
+                    onClick={handleAcceptAnalytics}
+                  >
+                    통계 수집 동의
+                  </button>
+                  <button
+                    type="button"
+                    className={`consent-btn-decline ${
+                      analyticsConsent === 'declined' ? 'is-current' : ''
+                    }`}
+                    onClick={handleDeclineAnalytics}
+                  >
+                    통계 수집 거부
+                  </button>
+                </div>
               </li>
             </ul>
           </div>

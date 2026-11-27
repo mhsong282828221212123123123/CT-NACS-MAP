@@ -37,6 +37,7 @@
 |---|---|
 | `NAVER_MAP_CLIENT_ID` | 네이버 클라우드 플랫폼 Maps **Client ID** |
 | `DATA_GO_KR_API_KEY` | 공공데이터포털 `한국환경공단_전기자동차 충전소 정보` **일반 인증키 (Decoding)** |
+| `GA_MEASUREMENT_ID` | Google Analytics 4 측정 ID (예: `G-XXXXXXXXXX`, 선택) |
 
 등록 후 **Actions → Deploy NACS Map to GitHub Pages → Run workflow**를 실행하면 전국 NACS 실데이터가 반영된 사이트가 배포됩니다. (이후 매 3시간마다 자동 갱신)
 

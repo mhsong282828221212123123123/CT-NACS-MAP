@@ -46,6 +46,7 @@ jobs:
         if: steps.status.outputs.updated == 'true'
         env:
           VITE_NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID || vars.NAVER_MAP_CLIENT_ID }}
+          VITE_GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID || vars.GA_MEASUREMENT_ID }}
         run: npm run build
 
       - name: Setup Pages
