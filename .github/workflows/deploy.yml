@@ -42,7 +42,7 @@ jobs:
 
       - name: Build web app
         env:
-          VITE_NAVER_MAP_CLIENT_ID: ${{ secrets.NAVERMAP || vars.NAVER_MAP_CLIENT_ID || secrets.NAVER_MAP_CLIENT_ID }}
+          VITE_NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID || vars.NAVER_MAP_CLIENT_ID }}
         run: npm run build
 
       - name: Setup Pages
