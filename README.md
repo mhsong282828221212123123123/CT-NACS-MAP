@@ -11,7 +11,7 @@
 - **상세 현황 & 길안내**: 충전기별 상태·출력(kW)·층수 정보 및 네이버지도 / 카카오맵 / 티맵 원터치 길안내
 - **이중 워크플로 자동 갱신**:
   - `sync-master.yml` — 하루 1회(03:00 KST) `getChargerInfo`로 전국 NACS 마스터 데이터 수집 (~45호출/일)
-  - `sync-status.yml` — 10분마다 `getChargerStatus?period=10`으로 최근 변경분만 패치해 커밋 없이 배포 (~150~300호출/일, 개발계정 1,000회/일 한도 내 운영)
+  - `sync-status.yml` — 5분마다 `getChargerStatus?period=10`으로 최근 변경분만 패치해 커밋 없이 배포 (~300~600호출/일)
   - `deploy.yml` — 코드 푸시 시 자동 빌드·배포
 
 ---
