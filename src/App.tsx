@@ -192,7 +192,7 @@ export function App() {
             <p className="brand-subtitle">
               GPS 기반 NACS(09·10) 전기차 충전소 지도 ·{' '}
               {dataset
-                ? `${stationsWithDistance.length}/${dataset.totalStations}곳 (${formatUpdatedAt(dataset.updatedAt)} 기준)`
+                ? `${stationsWithDistance.length}/${dataset.totalStations}곳 (${formatUpdatedAt(dataset.statusUpdatedAt || dataset.updatedAt)} 기준)`
                 : '불러오는 중'}
             </p>
           </div>

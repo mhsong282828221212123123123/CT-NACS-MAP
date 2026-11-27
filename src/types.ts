@@ -40,6 +40,7 @@ export interface NacsStationWithDistance extends NacsStation {
 
 export interface NacsDataset {
   updatedAt: string;
+  statusUpdatedAt?: string;
   isSample: boolean;
   source: string;
   totalStations: number;

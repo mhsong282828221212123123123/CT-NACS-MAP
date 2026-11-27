@@ -1,114 +1,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {
+  NACS_JSON_PATH,
+  NUM_OF_ROWS,
+  fetchEvChargerPage,
+  loadEnvFiles,
+  normalizeText,
+} from './lib/evcharger-api.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = path.resolve(__dirname, '..');
-const OUTPUT_PATH = path.join(ROOT_DIR, 'public', 'data', 'nacs.json');
 const API_ENDPOINT = 'https://apis.data.go.kr/B552584/EvCharger/getChargerInfo';
-const NUM_OF_ROWS = 9999;
 const CONCURRENCY = 4;
 const NACS_TYPES = new Set(['09', '10']);
-
-/**
- * Loads `.env` and `.env.local` if present so local runs work without extra deps.
- */
-async function loadEnvFiles() {
-  for (const filename of ['.env', '.env.local']) {
-    const filePath = path.join(ROOT_DIR, filename);
-    try {
-      const content = await fs.readFile(filePath, 'utf8');
-      for (const rawLine of content.split(/\r?\n/)) {
-        const line = rawLine.trim();
-        if (!line || line.startsWith('#')) continue;
-        const eqIdx = line.indexOf('=');
-        if (eqIdx === -1) continue;
-        const key = line.slice(0, eqIdx).trim();
-        let val = line.slice(eqIdx + 1).trim();
-        if (
-          (val.startsWith('"') && val.endsWith('"')) ||
-          (val.startsWith("'") && val.endsWith("'"))
-        ) {
-          val = val.slice(1, -1);
-        }
-        if (!(key in process.env) || !process.env[key]) {
-          process.env[key] = val;
-        }
-      }
-    } catch {
-      // File absent, skip silently.
-    }
-  }
-}
-
-function buildApiUrl(rawKey, pageNo) {
-  const encodedKey = rawKey.includes('%') ? rawKey : encodeURIComponent(rawKey);
-  const params = new URLSearchParams({
-    pageNo: String(pageNo),
-    numOfRows: String(NUM_OF_ROWS),
-    dataType: 'JSON',
-  });
-  return `${API_ENDPOINT}?serviceKey=${encodedKey}&${params.toString()}`;
-}
-
-async function fetchPageWithRetry(rawKey, pageNo, maxRetries = 3) {
-  const url = buildApiUrl(rawKey, pageNo);
-  let lastErr;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'CT-NACS-MAP/1.0',
-        },
-        signal: AbortSignal.timeout(30000),
-      });
-
-      const text = await res.text();
-      if (!res.ok) {
-        const snippet = text.slice(0, 300).replace(/\s+/g, ' ');
-        const err = new Error(
-          `HTTP ${res.status} ${res.statusText}${snippet ? ` - ${snippet}` : ''}`,
-        );
-        err.noRetry = res.status === 401 || res.status === 403;
-        throw err;
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        const snippet = text.slice(0, 240).replace(/\s+/g, ' ');
-        throw new Error(`Non-JSON API response: ${snippet}`);
-      }
-
-      if (data.resultCode && data.resultCode !== '00') {
-        throw new Error(`API error ${data.resultCode}: ${data.resultMsg ?? 'Unknown error'}`);
-      }
-
-      const itemsRaw = data.items?.item ?? [];
-      const items = Array.isArray(itemsRaw) ? itemsRaw : itemsRaw ? [itemsRaw] : [];
-      const totalCount = Number(data.totalCount ?? 0);
-
-      return { items, totalCount };
-    } catch (err) {
-      lastErr = err;
-      if (err?.noRetry || attempt >= maxRetries) {
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 800 * attempt));
-    }
-  }
-
-  throw new Error(`Page ${pageNo} failed: ${lastErr?.message}`);
-}
-
-function normalizeText(value) {
-  if (value === null || value === undefined) return '';
-  const str = String(value).trim();
-  return str === 'null' ? '' : str;
-}
 
 function parseNumber(value) {
   const num = Number(value);
@@ -222,8 +124,8 @@ async function main() {
     return;
   }
 
-  console.log('환경부(한국환경공단) API에서 충전기 데이터를 조회 중입니다...');
-  const firstPage = await fetchPageWithRetry(apiKey, 1);
+  console.log('환경부(한국환경공단) API에서 충전기 마스터 데이터를 조회 중입니다...');
+  const firstPage = await fetchEvChargerPage(API_ENDPOINT, apiKey, 1);
   const totalCount = firstPage.totalCount;
   const totalPages = Math.max(1, Math.ceil(totalCount / NUM_OF_ROWS));
 
@@ -234,7 +136,9 @@ async function main() {
 
   for (let i = 0; i < remainingPages.length; i += CONCURRENCY) {
     const batch = remainingPages.slice(i, i + CONCURRENCY);
-    const results = await Promise.all(batch.map((pageNo) => fetchPageWithRetry(apiKey, pageNo)));
+    const results = await Promise.all(
+      batch.map((pageNo) => fetchEvChargerPage(API_ENDPOINT, apiKey, pageNo)),
+    );
     for (const res of results) {
       allItems.push(...res.items);
     }
@@ -245,9 +149,11 @@ async function main() {
 
   const stations = groupNacsStations(allItems);
   const totalChargers = stations.reduce((sum, st) => sum + st.totalCount, 0);
+  const nowIso = new Date().toISOString();
 
   const payload = {
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowIso,
+    statusUpdatedAt: nowIso,
     isSample: false,
     source: '한국환경공단 전기자동차 충전소 정보 (getChargerInfo, chgerType 09/10)',
     totalStations: stations.length,
@@ -255,17 +161,17 @@ async function main() {
     stations,
   };
 
-  await fs.mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
-  await fs.writeFile(OUTPUT_PATH, JSON.stringify(payload), 'utf8');
+  await fs.mkdir(path.dirname(NACS_JSON_PATH), { recursive: true });
+  await fs.writeFile(NACS_JSON_PATH, JSON.stringify(payload), 'utf8');
 
   console.log(
-    `완료: NACS 충전소 ${stations.length.toLocaleString()}곳 / 충전기 ${totalChargers.toLocaleString()}기 저장 -> ${OUTPUT_PATH}`,
+    `완료: NACS 충전소 ${stations.length.toLocaleString()}곳 / 충전기 ${totalChargers.toLocaleString()}기 저장 -> ${NACS_JSON_PATH}`,
   );
 }
 
 main().catch((err) => {
   const msg = err?.message ?? String(err);
-  console.error('NACS 데이터 수집 실패:', msg);
+  console.error('NACS 마스터 데이터 수집 실패:', msg);
   if (msg.includes('SERVICE_KEY_IS_NOT_REGISTERED_ERROR')) {
     console.error(
       '안내: 공공데이터포털 신규 발급 인증키는 서버 동기화에 10~60분 정도 걸릴 수 있습니다. ENVIROMENT_GOV 값 확인 후 잠시 뒤 워크플로를 다시 실행해 주세요.',

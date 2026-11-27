@@ -1,12 +1,11 @@
-name: Deploy NACS Map to GitHub Pages
+name: Deploy NACS Map on Code Push
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'public/data/nacs.json'
   workflow_dispatch:
-  schedule:
-    # 3시간마다 환경부 API에서 NACS(09/10) 충전소 데이터를 갱신해 배포
-    - cron: '0 */3 * * *'
 
 permissions:
   contents: read
@@ -34,11 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Fetch latest NACS chargers from Ministry of Environment API
+      - name: Refresh NACS dataset (master if sample, else 10m status)
         continue-on-error: true
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.ENVIROMENT_GOV || secrets.DATA_GO_KR_API_KEY }}
-        run: node scripts/fetch-nacs.mjs
+          LIVE_DATA_URL: https://mhsong282828221212123123123.github.io/CT-NACS-MAP/data/nacs.json
+        run: |
+          IS_SAMPLE=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('public/data/nacs.json','utf8'));console.log(Boolean(d.isSample))")
+          if [ "$IS_SAMPLE" = "true" ]; then
+            node scripts/fetch-nacs.mjs
+          else
+            node scripts/update-nacs-status.mjs
+          fi
 
       - name: Build web app
         env:
