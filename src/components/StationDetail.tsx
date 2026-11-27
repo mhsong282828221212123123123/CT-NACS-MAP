@@ -60,9 +60,13 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
       </div>
 
       <div className="detail-summary-row">
-        <span className={station.availableCount > 0 ? 'status-pill available' : 'status-pill busy'}>
-          충전대기 {station.availableCount} / {station.totalCount}기
-        </span>
+        {station.hasLiveStatus === false ? (
+          <span className="status-pill sc">총 {station.totalCount}기 · 실시간 미제공</span>
+        ) : (
+          <span className={station.availableCount > 0 ? 'status-pill available' : 'status-pill busy'}>
+            충전대기 {station.availableCount} / {station.totalCount}기
+          </span>
+        )}
         {distanceLabel && <span className="distance-pill">{distanceLabel}</span>}
         <span className="operator-name">{station.busiNm}</span>
       </div>
@@ -88,7 +92,12 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
           <Clock size={15} />
           <span>
             {station.useTime || '이용시간 정보 없음'} ·{' '}
-            {station.parkingFree === 'Y' ? '무료주차' : '주차요금 별도/확인필요'} ·{' '}
+            {station.parkingFree === 'Y'
+              ? '무료주차'
+              : station.parkingFree === 'N'
+                ? '주차요금 별도/확인필요'
+                : '주차요금 현장확인'}{' '}
+            ·{' '}
             {station.limitYn === 'Y'
               ? `이용제한(${station.limitDetail || '상세확인'})`
               : '외부인 개방'}
@@ -127,27 +136,39 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
 
       <div className="charger-list-section">
         <div className="charger-list-title">
-          <PlugZap size={14} /> NACS 충전기 현황 ({station.chargers.length}기)
+          <PlugZap size={14} />{' '}
+          {station.hasLiveStatus === false
+            ? `충전소 구성 (총 ${station.totalCount}기)`
+            : `NACS 충전기 현황 (${station.chargers.length}기)`}
         </div>
-        <div className="charger-grid">
-          {station.chargers.map((charger) => {
-            const meta = getChargerStatusMeta(charger.stat);
-            const updatedLabel = formatStatUpdDt(charger.statUpdDt);
-            return (
-              <div key={charger.chgerId} className={`charger-item tone-${meta.tone}`}>
-                <div className="charger-item-top">
-                  <span className="charger-id">#{charger.chgerId}</span>
-                  <span className={`charger-status tone-${meta.tone}`}>{meta.label}</span>
+        {station.hasLiveStatus === false ? (
+          <div className="sc-info-note">
+            {station.stallSummary && <div className="sc-stall-summary">{station.stallSummary}</div>}
+            <p>
+              출처: supercharge.info · 실시간 빈자리 및 요금은 Tesla 앱에서 확인해 주세요.
+            </p>
+          </div>
+        ) : (
+          <div className="charger-grid">
+            {station.chargers.map((charger) => {
+              const meta = getChargerStatusMeta(charger.stat);
+              const updatedLabel = formatStatUpdDt(charger.statUpdDt);
+              return (
+                <div key={charger.chgerId} className={`charger-item tone-${meta.tone}`}>
+                  <div className="charger-item-top">
+                    <span className="charger-id">#{charger.chgerId}</span>
+                    <span className={`charger-status tone-${meta.tone}`}>{meta.label}</span>
+                  </div>
+                  <div className="charger-item-meta">
+                    <span>{getChargerTypeLabel(charger.chgerType)}</span>
+                    {charger.output > 0 && <span>{charger.output}kW</span>}
+                  </div>
+                  {updatedLabel && <div className="charger-updated">갱신 {updatedLabel}</div>}
                 </div>
-                <div className="charger-item-meta">
-                  <span>{getChargerTypeLabel(charger.chgerType)}</span>
-                  {charger.output > 0 && <span>{charger.output}kW</span>}
-                </div>
-                {updatedLabel && <div className="charger-updated">갱신 {updatedLabel}</div>}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

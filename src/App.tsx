@@ -62,6 +62,7 @@ export function App() {
   const [filters, setFilters] = useState<FilterState>({
     query: '',
     type: 'all',
+    onlySupercharger: false,
     onlyAvailable: false,
     onlyFreeParking: false,
     onlyPublic: false,
@@ -180,12 +181,16 @@ export function App() {
     const filtered = stations.filter((st) => {
       if (filters.type === '09' && !st.hasPureNacs) return false;
       if (filters.type === '10' && !st.hasComboNacs) return false;
-      if (filters.onlyAvailable && st.availableCount === 0) return false;
+      if (filters.onlySupercharger && !isTeslaStation(st)) return false;
+      if (filters.onlyAvailable && (st.hasLiveStatus === false || st.availableCount === 0)) {
+        return false;
+      }
       if (filters.onlyFreeParking && st.parkingFree !== 'Y') return false;
       if (filters.onlyPublic && st.limitYn === 'Y') return false;
 
       if (normalizedQuery) {
-        const haystack = `${st.statNm} ${st.addr} ${st.busiNm} ${st.location}`.toLowerCase();
+        const haystack =
+          `${st.statNm} ${st.addr} ${st.busiNm} ${st.location} ${st.stallSummary ?? ''}`.toLowerCase();
         if (!haystack.includes(normalizedQuery)) return false;
       }
       return true;
@@ -342,6 +347,15 @@ export function App() {
             <div className="chip-row">
               <button
                 type="button"
+                className={`chip chip-tesla ${filters.onlySupercharger ? 'selected' : ''}`}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, onlySupercharger: !prev.onlySupercharger }))
+                }
+              >
+                슈퍼차저만
+              </button>
+              <button
+                type="button"
                 className={`chip ${filters.onlyAvailable ? 'selected' : ''}`}
                 onClick={() =>
                   setFilters((prev) => ({ ...prev, onlyAvailable: !prev.onlyAvailable }))
@@ -398,13 +412,17 @@ export function App() {
                     </div>
                     <div className="station-card-addr">{station.addr}</div>
                     <div className="station-card-bottom">
-                      <span
-                        className={`station-card-avail ${
-                          station.availableCount > 0 ? 'ok' : 'none'
-                        }`}
-                      >
-                        대기 {station.availableCount}/{station.totalCount}
-                      </span>
+                      {station.hasLiveStatus === false ? (
+                        <span className="station-card-avail sc">총 {station.totalCount}기</span>
+                      ) : (
+                        <span
+                          className={`station-card-avail ${
+                            station.availableCount > 0 ? 'ok' : 'none'
+                          }`}
+                        >
+                          대기 {station.availableCount}/{station.totalCount}
+                        </span>
+                      )}
                       <span className="station-card-meta">
                         {station.maxOutput > 0 ? `${station.maxOutput}kW · ` : ''}
                         {station.busiNm}

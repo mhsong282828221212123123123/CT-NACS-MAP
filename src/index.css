@@ -834,3 +834,41 @@ body,
   color: #334155;
   line-height: 1.55;
 }
+
+.chip-tesla.selected {
+  border-color: #e31937;
+  background: #e31937;
+  color: #ffffff;
+}
+
+.station-card-avail.sc {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.status-pill.sc {
+  background: #ffe4e6;
+  color: #be123c;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+.sc-info-note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  font-size: 12px;
+  color: #881337;
+}
+
+.sc-stall-summary {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sc-info-note p {
+  margin: 0;
+  color: #9f1239;
+}

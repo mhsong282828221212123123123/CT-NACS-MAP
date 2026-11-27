@@ -31,6 +31,10 @@ export interface NacsStation {
   availableCount: number;
   chargingCount: number;
   totalCount: number;
+  dataSource?: 'evcharger' | 'supercharge.info';
+  hasLiveStatus?: boolean;
+  otherEVs?: boolean;
+  stallSummary?: string;
   chargers: NacsCharger[];
 }
 
@@ -53,6 +57,7 @@ export type NacsTypeFilter = 'all' | '09' | '10';
 export interface FilterState {
   query: string;
   type: NacsTypeFilter;
+  onlySupercharger: boolean;
   onlyAvailable: boolean;
   onlyFreeParking: boolean;
   onlyPublic: boolean;

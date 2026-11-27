@@ -113,6 +113,10 @@ async function main() {
 
   let patchedChargers = 0;
   for (const station of base.stations) {
+    if (station.hasLiveStatus === false) {
+      continue;
+    }
+
     let availableCount = 0;
     let chargingCount = 0;
 

@@ -71,12 +71,15 @@ function createStationMarkerHtml(
   station: NacsStationWithDistance,
   isSelected: boolean,
 ): string {
-  const hasAvail = station.availableCount > 0;
-  const badgeText = `${station.availableCount}/${station.totalCount}`;
+  const hasLive = station.hasLiveStatus !== false;
+  const hasAvail = hasLive && station.availableCount > 0;
   const isTesla = isTeslaStation(station);
 
   if (isTesla) {
-    const redBg = isSelected ? '#7f1d1d' : hasAvail ? '#E31937' : '#9f1239';
+    const badgeText = hasLive
+      ? `${station.availableCount}/${station.totalCount}`
+      : `${station.totalCount}기`;
+    const redBg = isSelected ? '#7f1d1d' : !hasLive || hasAvail ? '#E31937' : '#9f1239';
     const emblemBg = isSelected ? '#991b1b' : '#E31937';
     const border = isSelected ? '#fecaca' : '#ffffff';
 
@@ -126,6 +129,7 @@ function createStationMarkerHtml(
     `;
   }
 
+  const badgeText = `${station.availableCount}/${station.totalCount}`;
   const bg = isSelected ? '#0f172a' : hasAvail ? '#059669' : '#64748b';
   const border = isSelected ? '#38bdf8' : '#ffffff';
   const label = station.hasPureNacs && !station.hasComboNacs ? 'NACS' : 'NACS+';
@@ -290,7 +294,7 @@ export function NaverMap({
         position: new maps.LatLng(station.lat, station.lng),
         map: mapRef.current!,
         title: station.statNm,
-        zIndex: isSelected ? 150 : station.availableCount > 0 ? 100 : 50,
+        zIndex: isSelected ? 160 : isTesla ? 120 : station.availableCount > 0 ? 100 : 50,
         icon: {
           content: createStationMarkerHtml(station, isSelected),
           anchor: isTesla ? new maps.Point(34, 34) : new maps.Point(34, 14),
