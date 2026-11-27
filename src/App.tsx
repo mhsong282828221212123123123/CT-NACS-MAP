@@ -633,7 +633,11 @@ export function App() {
           />
 
           {selectedStation && (
-            <StationDetail station={selectedStation} onClose={() => setSelectedId(null)} />
+            <StationDetail
+              station={selectedStation}
+              statusUpdatedAt={dataset?.statusUpdatedAt || dataset?.updatedAt}
+              onClose={() => setSelectedId(null)}
+            />
           )}
         </section>
       </main>

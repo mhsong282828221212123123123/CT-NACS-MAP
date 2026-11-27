@@ -3,6 +3,9 @@ export interface NacsCharger {
   chgerType: string;
   stat: string;
   statUpdDt: string;
+  lastTsdt?: string;
+  lastTedt?: string;
+  nowTsdt?: string;
   output: number;
   method: string;
 }

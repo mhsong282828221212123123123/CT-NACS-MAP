@@ -29,15 +29,29 @@ import { TeslaEmblem } from './TeslaEmblem';
 
 interface StationDetailProps {
   station: NacsStationWithDistance;
+  statusUpdatedAt?: string;
   onClose: () => void;
 }
 
-export function StationDetail({ station, onClose }: StationDetailProps) {
+export function StationDetail({ station, statusUpdatedAt, onClose }: StationDetailProps) {
   const distanceLabel = formatDistance(station.distanceKm);
   const isTesla = isTeslaStation(station);
   const showMobileShare = isMobileDevice();
   const [showMoreApps, setShowMoreApps] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  const parsedPollTs = statusUpdatedAt ? Date.parse(statusUpdatedAt) : Number.NaN;
+  const hasPollTime = Number.isFinite(parsedPollTs);
+  const pollLabel = hasPollTime
+    ? new Intl.DateTimeFormat('ko-KR', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(parsedPollTs))
+    : '';
+  const isStale = hasPollTime && Date.now() - parsedPollTs > 15 * 60 * 1000;
 
   useEffect(() => {
     setShowMoreApps(false);
@@ -224,10 +238,20 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
 
       <div className="charger-list-section">
         <div className="charger-list-title">
-          <PlugZap size={14} />{' '}
-          {station.hasLiveStatus === false
-            ? `충전소 구성 (총 ${station.totalCount}기)`
-            : `NACS 충전기 현황 (${station.chargers.length}기)`}
+          <span className="charger-list-title-left">
+            <PlugZap size={14} />
+            <span>
+              {station.hasLiveStatus === false
+                ? `충전소 구성 (총 ${station.totalCount}기)`
+                : `NACS 충전기 현황 (${station.chargers.length}기)`}
+            </span>
+          </span>
+          {station.hasLiveStatus !== false && pollLabel && (
+            <span className={`charger-sync-time ${isStale ? 'stale' : ''}`}>
+              조회 {pollLabel}
+              {isStale ? ' (지연)' : ''}
+            </span>
+          )}
         </div>
         {station.hasLiveStatus === false ? (
           <div className="sc-info-note">
@@ -240,7 +264,19 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
           <div className="charger-grid">
             {station.chargers.map((charger) => {
               const meta = getChargerStatusMeta(charger.stat);
-              const updatedLabel = formatStatUpdDt(charger.statUpdDt);
+              const formattedNow = formatStatUpdDt(charger.nowTsdt ?? '');
+              const formattedEnd = formatStatUpdDt(charger.lastTedt ?? '');
+              const formattedUpd = formatStatUpdDt(charger.statUpdDt ?? '');
+
+              let eventLabel = '';
+              if (charger.stat === '3' && formattedNow) {
+                eventLabel = `충전 시작 ${formattedNow}`;
+              } else if (charger.stat === '2' && formattedEnd) {
+                eventLabel = `최근 종료 ${formattedEnd}`;
+              } else if (formattedUpd) {
+                eventLabel = `상태변경 ${formattedUpd}`;
+              }
+
               return (
                 <div key={charger.chgerId} className={`charger-item tone-${meta.tone}`}>
                   <div className="charger-item-top">
@@ -251,7 +287,7 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
                     <span>{getChargerTypeLabel(charger.chgerType)}</span>
                     {charger.output > 0 && <span>{charger.output}kW</span>}
                   </div>
-                  {updatedLabel && <div className="charger-updated">갱신 {updatedLabel}</div>}
+                  {eventLabel && <div className="charger-updated">{eventLabel}</div>}
                 </div>
               );
             })}

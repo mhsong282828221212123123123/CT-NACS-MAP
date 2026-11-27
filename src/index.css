@@ -700,11 +700,33 @@ body,
 .charger-list-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
   font-weight: 700;
   color: #334155;
   margin-bottom: 8px;
+}
+
+.charger-list-title-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.charger-sync-time {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.charger-sync-time.stale {
+  color: #b45309;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 9999px;
 }
 
 .charger-grid {
