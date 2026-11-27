@@ -146,6 +146,49 @@ function mergeSingleStationStatus(
   return changed ? { ...dataset, stations } : dataset;
 }
 
+async function checkForNewAppBundle(): Promise<boolean> {
+  if (!import.meta.env.PROD || typeof document === 'undefined') {
+    return false;
+  }
+  try {
+    const currentScript = document.querySelector<HTMLScriptElement>(
+      'script[type="module"][src*="assets/index-"]',
+    );
+    const currentMatch = currentScript
+      ?.getAttribute('src')
+      ?.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+    const currentBundle = currentMatch?.[0];
+    if (!currentBundle) return false;
+
+    const res = await fetch(`${import.meta.env.BASE_URL}?_v=${Date.now()}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return false;
+
+    const html = await res.text();
+    const latestMatch = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+    const latestBundle = latestMatch?.[0];
+    if (!latestBundle || latestBundle === currentBundle) {
+      return false;
+    }
+
+    try {
+      if (window.sessionStorage.getItem('ct_nacs_reloaded_bundle') === latestBundle) {
+        return false;
+      }
+      window.sessionStorage.setItem('ct_nacs_reloaded_bundle', latestBundle);
+    } catch {
+      // Ignore sessionStorage errors in restricted WebViews.
+    }
+
+    window.location.reload();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function formatUpdatedAt(iso: string): string {
   if (!iso) return '';
   const date = new Date(iso);
@@ -170,6 +213,7 @@ export function App() {
   const datasetRef = useRef<NacsDataset | null>(null);
   datasetRef.current = dataset;
   const recentLiveStationRef = useRef<Record<string, number>>({});
+  const lastVersionCheckRef = useRef<number>(0);
 
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'locating' | 'ready' | 'error'>('idle');
@@ -405,6 +449,7 @@ export function App() {
   useEffect(() => {
     const AUTO_REFRESH_MS = 60_000;
     const VISIBILITY_THROTTLE_MS = 20_000;
+    const VERSION_CHECK_THROTTLE_MS = 3 * 60 * 1000;
 
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -413,10 +458,20 @@ export function App() {
     }, AUTO_REFRESH_MS);
 
     const handleResume = () => {
-      if (
-        document.visibilityState === 'visible' &&
-        Date.now() - lastFetchAtRef.current >= VISIBILITY_THROTTLE_MS
-      ) {
+      if (document.visibilityState !== 'visible') return;
+
+      const now = Date.now();
+      if (now - lastVersionCheckRef.current >= VERSION_CHECK_THROTTLE_MS) {
+        lastVersionCheckRef.current = now;
+        void checkForNewAppBundle().then((reloaded) => {
+          if (!reloaded && Date.now() - lastFetchAtRef.current >= VISIBILITY_THROTTLE_MS) {
+            void loadDataset(true);
+          }
+        });
+        return;
+      }
+
+      if (now - lastFetchAtRef.current >= VISIBILITY_THROTTLE_MS) {
         void loadDataset(true);
       }
     };
@@ -558,7 +613,11 @@ export function App() {
       });
   }, []);
 
-  const handleManualRefresh = useCallback(() => {
+  const handleManualRefresh = useCallback(async () => {
+    lastVersionCheckRef.current = Date.now();
+    const reloaded = await checkForNewAppBundle();
+    if (reloaded) return;
+
     void loadDataset(true);
     const curId = selectedIdRef.current;
     const curStation = datasetRef.current?.stations.find((s) => s.statId === curId);
@@ -650,7 +709,7 @@ export function App() {
             <button
               type="button"
               className={`refresh-btn ${refreshingData ? 'spinning' : ''}`}
-              onClick={handleManualRefresh}
+              onClick={() => void handleManualRefresh()}
               disabled={refreshingData}
               title="충전 상태 새로고침"
               aria-label="충전 상태 새로고침"
