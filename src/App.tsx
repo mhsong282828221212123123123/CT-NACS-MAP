@@ -72,6 +72,22 @@ export function App() {
   const [analyticsConsent, setAnalyticsConsent] = useState<AnalyticsConsent>(() =>
     getStoredConsent(),
   );
+  const [disclaimerDismissed, setDisclaimerDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem('ct_nacs_disclaimer_dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleDismissDisclaimer = useCallback(() => {
+    setDisclaimerDismissed(true);
+    try {
+      window.localStorage.setItem('ct_nacs_disclaimer_dismissed', '1');
+    } catch {
+      // Ignore storage errors.
+    }
+  }, []);
 
   useEffect(() => {
     if (analyticsConsent === 'accepted') {
@@ -570,25 +586,51 @@ export function App() {
         </section>
       </main>
 
-      <footer className="disclaimer-bar" aria-label="법적 고지 및 면책 조항">
-        <div className="disclaimer-text">
-          <ShieldAlert size={13} />
-          <span>
-            비공식 독립 서비스 · 본 사이트는 <strong>Tesla, Inc. 및 테슬라코리아와 무관</strong>
-            하며, 제공 정보의 정확성·실시간성 및 이용 결과에 대한 어떠한 법적 책임도 지지 않습니다.
-          </span>
-        </div>
+      {!disclaimerDismissed ? (
+        <footer className="disclaimer-bar" aria-label="법적 고지 및 면책 조항">
+          <div className="disclaimer-text">
+            <ShieldAlert size={13} />
+            <span>
+              비공식 독립 서비스 · 본 사이트는 <strong>Tesla, Inc. 및 테슬라코리아와 무관</strong>
+              하며, 제공 정보의 정확성·실시간성 및 이용 결과에 대한 어떠한 법적 책임도 지지
+              않습니다.
+            </span>
+          </div>
+          <div className="disclaimer-actions">
+            <button
+              type="button"
+              className="disclaimer-detail-btn"
+              onClick={() => setShowDisclaimerModal(true)}
+            >
+              법적고지 상세
+            </button>
+            <button
+              type="button"
+              className="disclaimer-close-btn"
+              onClick={handleDismissDisclaimer}
+              aria-label="하단 법적 고지 숨기기"
+              title="숨기기"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </footer>
+      ) : (
         <button
           type="button"
-          className="disclaimer-detail-btn"
+          className="disclaimer-mini-btn"
           onClick={() => setShowDisclaimerModal(true)}
         >
-          법적고지 상세
+          법적고지
         </button>
-      </footer>
+      )}
 
       {analyticsConsent === 'unset' && (
-        <aside className="consent-banner" role="region" aria-label="쿠키 및 방문 통계 동의">
+        <aside
+          className={`consent-banner ${disclaimerDismissed ? 'no-footer' : ''}`}
+          role="region"
+          aria-label="쿠키 및 방문 통계 동의"
+        >
           <div className="consent-banner-text">
             <strong>쿠키 및 방문 통계(Google Analytics) 안내</strong>
             <span>
