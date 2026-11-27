@@ -1,11 +1,27 @@
 {
+  "id": "/CT-NACS-MAP/",
   "name": "CT-NACS-MAP",
   "short_name": "CT-NACS-MAP",
   "description": "환경부(한국환경공단) 공공데이터 기반 GPS NACS(09/10) 전기차 충전소 지도 웹앱",
   "start_url": "/CT-NACS-MAP/",
   "scope": "/CT-NACS-MAP/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
-  "lang": "ko"
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

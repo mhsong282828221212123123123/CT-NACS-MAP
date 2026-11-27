@@ -52,15 +52,13 @@ body,
   min-width: 0;
 }
 
-.brand-icon {
-  display: grid;
-  place-items: center;
+.brand-icon-img {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #10b981, #0ea5e9);
-  color: #ffffff;
+  object-fit: cover;
   flex-shrink: 0;
+  background: #1e293b;
 }
 
 .brand h1 {
@@ -86,6 +84,7 @@ body,
   flex-shrink: 0;
 }
 
+.install-btn,
 .gps-btn {
   display: inline-flex;
   align-items: center;
@@ -98,6 +97,12 @@ body,
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.install-btn {
+  border-color: #10b981;
+  background: #065f46;
+  color: #ffffff;
 }
 
 .gps-btn.active {

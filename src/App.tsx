@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Crosshair,
+  Download,
   List,
   Map as MapIcon,
   RefreshCw,
   Search,
   ShieldAlert,
   X,
-  Zap,
 } from 'lucide-react';
 import { NaverMap } from './components/NaverMap';
 import { StationDetail } from './components/StationDetail';
@@ -19,6 +19,11 @@ import type {
   NacsStationWithDistance,
 } from './types';
 import { calcDistanceKm, formatDistance, isTeslaStation } from './utils/geo';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 const DEFAULT_CENTER: Coordinates = { lat: 37.5665, lng: 126.978 };
 
@@ -46,6 +51,16 @@ export function App() {
   );
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(
+    null,
+  );
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIosInstallGuide, setShowIosInstallGuide] = useState(false);
+
+  const isIosSafari = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }, []);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
@@ -174,6 +189,44 @@ export function App() {
     };
   }, [loadDataset, requestGps]);
 
+  useEffect(() => {
+    const nav = navigator as Navigator & { standalone?: boolean };
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches || Boolean(nav.standalone);
+    setIsStandalone(standalone);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPromptEvent(e as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsStandalone(true);
+      setInstallPromptEvent(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = useCallback(async () => {
+    if (installPromptEvent) {
+      await installPromptEvent.prompt();
+      const choice = await installPromptEvent.userChoice;
+      if (choice.outcome === 'accepted') {
+        setInstallPromptEvent(null);
+      }
+      return;
+    }
+    if (isIosSafari) {
+      setShowIosInstallGuide(true);
+    }
+  }, [installPromptEvent, isIosSafari]);
+
   const stationsWithDistance = useMemo<NacsStationWithDistance[]>(() => {
     const stations = dataset?.stations ?? [];
     const normalizedQuery = filters.query.trim().toLowerCase();
@@ -233,9 +286,13 @@ export function App() {
     <div className="app-shell">
       <header className="top-bar">
         <div className="brand">
-          <div className="brand-icon">
-            <Zap size={18} />
-          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}icon-192.png`}
+            alt="CT-NACS-MAP 아이콘"
+            className="brand-icon-img"
+            width={34}
+            height={34}
+          />
           <div>
             <h1>CT-NACS-MAP</h1>
             <p className="brand-subtitle">
@@ -248,6 +305,16 @@ export function App() {
         </div>
 
         <div className="top-actions">
+          {!isStandalone && (installPromptEvent || isIosSafari) && (
+            <button
+              type="button"
+              className="install-btn"
+              onClick={() => void handleInstallClick()}
+            >
+              <Download size={15} />
+              <span>앱 설치</span>
+            </button>
+          )}
           <button
             type="button"
             className={`gps-btn ${gpsStatus === 'ready' ? 'active' : ''}`}
@@ -504,6 +571,41 @@ export function App() {
                 정보는 한국환경공단 공공데이터(Open API)를 주기적으로 수집해 제공하므로 실제 현장
                 상태와 다를 수 있습니다. 본 사이트의 정보 이용 또는 이용 불가로 인해 발생하는 직·간접적
                 손해에 대해 제작자 및 운영자는 어떠한 법적 책임도 부담하지 않습니다.
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {showIosInstallGuide && (
+        <div
+          className="disclaimer-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ios-install-modal-title"
+          onClick={() => setShowIosInstallGuide(false)}
+        >
+          <div className="disclaimer-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="disclaimer-modal-header">
+              <h2 id="ios-install-modal-title">아이폰·아이패드 홈 화면에 추가</h2>
+              <button
+                type="button"
+                className="icon-close-btn"
+                onClick={() => setShowIosInstallGuide(false)}
+                aria-label="설치 안내 닫기"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <ul>
+              <li>
+                1. Safari 하단(또는 상단)의 <strong>공유 버튼(□↑)</strong>을 누릅니다.
+              </li>
+              <li>
+                2. 메뉴를 아래로 내려 <strong>홈 화면에 추가</strong>를 선택합니다.
+              </li>
+              <li>
+                3. 오른쪽 상단 <strong>추가</strong>를 누르면 바탕화면에 앱 아이콘이 생성됩니다.
               </li>
             </ul>
           </div>
