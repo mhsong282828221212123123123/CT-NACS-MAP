@@ -30,17 +30,26 @@ import { TeslaEmblem } from './TeslaEmblem';
 interface StationDetailProps {
   station: NacsStationWithDistance;
   statusUpdatedAt?: string;
+  liveChecking?: boolean;
+  liveCheckedAt?: string;
   onClose: () => void;
 }
 
-export function StationDetail({ station, statusUpdatedAt, onClose }: StationDetailProps) {
+export function StationDetail({
+  station,
+  statusUpdatedAt,
+  liveChecking = false,
+  liveCheckedAt,
+  onClose,
+}: StationDetailProps) {
   const distanceLabel = formatDistance(station.distanceKm);
   const isTesla = isTeslaStation(station);
   const showMobileShare = isMobileDevice();
   const [showMoreApps, setShowMoreApps] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
-  const parsedPollTs = statusUpdatedAt ? Date.parse(statusUpdatedAt) : Number.NaN;
+  const effectiveTimeIso = liveCheckedAt || statusUpdatedAt;
+  const parsedPollTs = effectiveTimeIso ? Date.parse(effectiveTimeIso) : Number.NaN;
   const hasPollTime = Number.isFinite(parsedPollTs);
   const pollLabel = hasPollTime
     ? new Intl.DateTimeFormat('ko-KR', {
@@ -51,7 +60,7 @@ export function StationDetail({ station, statusUpdatedAt, onClose }: StationDeta
         hour12: false,
       }).format(new Date(parsedPollTs))
     : '';
-  const isStale = hasPollTime && Date.now() - parsedPollTs > 15 * 60 * 1000;
+  const isStale = !liveCheckedAt && hasPollTime && Date.now() - parsedPollTs > 15 * 60 * 1000;
 
   useEffect(() => {
     setShowMoreApps(false);
@@ -246,12 +255,21 @@ export function StationDetail({ station, statusUpdatedAt, onClose }: StationDeta
                 : `NACS 충전기 현황 (${station.chargers.length}기)`}
             </span>
           </span>
-          {station.hasLiveStatus !== false && pollLabel && (
-            <span className={`charger-sync-time ${isStale ? 'stale' : ''}`}>
-              조회 {pollLabel}
-              {isStale ? ' (지연)' : ''}
-            </span>
-          )}
+          {station.hasLiveStatus !== false &&
+            (liveChecking ? (
+              <span className="charger-sync-time live-checking">실시간 확인중...</span>
+            ) : (
+              pollLabel && (
+                <span
+                  className={`charger-sync-time ${
+                    liveCheckedAt ? 'live' : isStale ? 'stale' : ''
+                  }`}
+                >
+                  {liveCheckedAt ? '실시간' : '조회'} {pollLabel}
+                  {!liveCheckedAt && isStale ? ' (지연)' : ''}
+                </span>
+              )
+            ))}
         </div>
         {station.hasLiveStatus === false ? (
           <div className="sc-info-note">

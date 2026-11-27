@@ -729,6 +729,20 @@ body,
   border-radius: 9999px;
 }
 
+.charger-sync-time.live {
+  color: #166534;
+  background: #dcfce7;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.charger-sync-time.live-checking {
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
 .charger-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
