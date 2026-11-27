@@ -629,6 +629,7 @@ export function App() {
             centerTarget={centerTarget}
             isVisible={mobileView === 'map'}
             onSelectStation={handleSelectStation}
+            onMapClick={() => setSelectedId(null)}
           />
 
           {selectedStation && (

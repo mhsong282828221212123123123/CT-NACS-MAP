@@ -15,6 +15,7 @@ interface NaverMapProps {
   centerTarget: { coords: Coordinates; zoom?: number; seq: number };
   isVisible?: boolean;
   onSelectStation: (station: NacsStationWithDistance) => void;
+  onMapClick?: () => void;
 }
 
 type SdkStatus = 'missing_key' | 'loading' | 'ready' | 'auth_error' | 'load_error';
@@ -233,6 +234,7 @@ export function NaverMap({
   centerTarget,
   isVisible = true,
   onSelectStation,
+  onMapClick,
 }: NaverMapProps) {
   const clientId = (import.meta.env.VITE_NAVER_MAP_CLIENT_ID ?? '').trim();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -241,6 +243,9 @@ export function NaverMap({
   const userMarkerRef = useRef<NaverMarkerInstance | null>(null);
   const onSelectRef = useRef(onSelectStation);
   onSelectRef.current = onSelectStation;
+  const onMapClickRef = useRef(onMapClick);
+  onMapClickRef.current = onMapClick;
+  const lastMarkerClickAtRef = useRef<number>(0);
 
   const [sdkStatus, setSdkStatus] = useState<SdkStatus>(
     clientId ? 'loading' : 'missing_key',
@@ -327,6 +332,10 @@ export function NaverMap({
     syncZoom();
     maps.Event.addListener(map, 'zoom_changed', syncZoom);
     maps.Event.addListener(map, 'idle', syncZoom);
+    maps.Event.addListener(map, 'click', () => {
+      if (Date.now() - lastMarkerClickAtRef.current < 250) return;
+      onMapClickRef.current?.();
+    });
   }, [sdkStatus, centerTarget]);
 
   useEffect(() => {
@@ -441,6 +450,7 @@ export function NaverMap({
       });
 
       maps.Event.addListener(marker, 'click', () => {
+        lastMarkerClickAtRef.current = Date.now();
         onSelectRef.current(station);
       });
 
