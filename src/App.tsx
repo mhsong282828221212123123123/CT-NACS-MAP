@@ -188,9 +188,9 @@ export function App() {
             <Zap size={18} />
           </div>
           <div>
-            <h1>NACS 충전소 지도</h1>
+            <h1>CT-NACS-MAP</h1>
             <p className="brand-subtitle">
-              환경부 공공데이터 (09·10) ·{' '}
+              GPS 기반 NACS(09·10) 전기차 충전소 지도 ·{' '}
               {dataset
                 ? `${stationsWithDistance.length}/${dataset.totalStations}곳 (${formatUpdatedAt(dataset.updatedAt)} 기준)`
                 : '불러오는 중'}

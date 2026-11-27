@@ -1,7 +1,8 @@
 {
-  "name": "nacs-map",
+  "name": "ct-nacs-map",
   "private": true,
   "version": "0.1.0",
+  "description": "환경부(한국환경공단) 공공데이터 기반 GPS NACS(09/10) 전기차 충전소 지도 웹앱",
   "type": "module",
   "scripts": {
     "dev": "vite",

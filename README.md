@@ -1,8 +1,15 @@
-# NACS 충전소 지도
+# CT-NACS-MAP
 
-환경부(한국환경공단) 전기자동차 충전소 Open API에서 **NACS(`chgerType` `09`, `10`)** 충전기만 필터링하여 내 GPS 위치 기준으로 보여주는 웹앱입니다.
+환경부(한국환경공단) 전기자동차 충전소 정보 Open API에서 **NACS(`chgerType` `09` NACS / `10` DC콤보+NACS)** 충전기만 필터링하여 내 GPS 위치 기준으로 보여주는 웹앱입니다.
 
-- **실제 배포 주소 (GitHub Pages)**: https://mhsong282828221212123123123.github.io/nacs/
+- **실제 배포 주소 (GitHub Pages)**: https://mhsong282828221212123123123.github.io/CT-NACS-MAP/
+- **저장소**: https://github.com/mhsong282828221212123123123/CT-NACS-MAP
+
+### 주요 기능
+- **GPS 거리순 정렬**: 현재 위치 기준 가까운 NACS 충전소를 거리순으로 확인
+- **NACS 전용 필터**: `NACS 전용(09)`, `DC콤보+NACS(10)`, `충전대기만`, `무료주차`, `외부인 개방`
+- **상세 현황 & 길안내**: 충전기별 상태·출력(kW)·층수 정보 및 네이버지도 / 카카오맵 / 티맵 원터치 길안내
+- **무서버 자동 갱신**: GitHub Actions가 3시간마다 환경부 API에서 NACS 데이터만 추출해 정적 JSON으로 배포
 
 ---
 
@@ -21,7 +28,7 @@
 
 ## 2. GitHub Secrets 등록 (자동 데이터 갱신 및 배포)
 
-레포지토리 **Settings → Secrets and variables → Actions → Repository secrets**에 아래 두 값을 등록합니다.
+[레포지토리 Settings → Secrets and variables → Actions → Repository secrets](https://github.com/mhsong282828221212123123123/CT-NACS-MAP/settings/secrets/actions)에 아래 두 값을 등록합니다.
 
 | 이름 | 설명 |
 |---|---|
@@ -40,5 +47,5 @@ cp .env.example .env.local
 
 npm install
 npm run fetch:nacs   # 환경부 API에서 NACS(09/10)만 추출 -> public/data/nacs.json
-npm run dev          # http://localhost:5173/nacs/
+npm run dev          # http://localhost:5173/CT-NACS-MAP/
 ```
