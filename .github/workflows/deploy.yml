@@ -34,7 +34,6 @@ jobs:
         run: npm ci
 
       - name: Fetch latest NACS chargers from Ministry of Environment API
-        if: ${{ secrets.DATA_GO_KR_API_KEY != '' }}
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
         run: node scripts/fetch-nacs.mjs
