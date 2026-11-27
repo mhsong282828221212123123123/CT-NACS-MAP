@@ -110,3 +110,24 @@ export function isTeslaStation(station: Pick<NacsStation, 'busiId' | 'busiNm'>):
   if (station.busiId?.trim().toUpperCase() === 'TE') return true;
   return /테슬라|tesla/i.test(station.busiNm ?? '');
 }
+
+const OPERATOR_SHORT_NAMES: Record<string, string> = {
+  TE: '테슬라',
+  BE: '워터',
+  CV: '채비',
+  ST: 'SK일렉링크',
+  SG: 'SK시그넷',
+  PK: '펌프킨',
+};
+
+export function getOperatorShortName(station: Pick<NacsStation, 'busiId' | 'busiNm'>): string {
+  const busiId = station.busiId?.trim().toUpperCase();
+  if (busiId && OPERATOR_SHORT_NAMES[busiId]) {
+    return OPERATOR_SHORT_NAMES[busiId];
+  }
+  const cleaned = (station.busiNm ?? '')
+    .replace(/^\s*(주식회사|\(주\)|㈜)\s*/g, '')
+    .replace(/\s*(주식회사|\(주\)|㈜)\s*$/g, '')
+    .trim();
+  return cleaned || '운영사';
+}

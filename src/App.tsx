@@ -18,7 +18,12 @@ import type {
   NacsDataset,
   NacsStationWithDistance,
 } from './types';
-import { calcDistanceKm, formatDistance, isTeslaStation } from './utils/geo';
+import {
+  calcDistanceKm,
+  formatDistance,
+  getOperatorShortName,
+  isTeslaStation,
+} from './utils/geo';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -468,9 +473,14 @@ export function App() {
                   >
                     <div className="station-card-top">
                       <span className="station-card-name">
-                        {isTesla && (
-                          <span className="tesla-tag" title="테슬라 슈퍼차저">
-                            <TeslaEmblem size={11} />
+                        {isTesla ? (
+                          <span className="operator-tag tesla" title="테슬라코리아">
+                            <TeslaEmblem size={10} />
+                            <span>테슬라</span>
+                          </span>
+                        ) : (
+                          <span className="operator-tag" title={station.busiNm}>
+                            {getOperatorShortName(station)}
                           </span>
                         )}
                         {station.statNm}

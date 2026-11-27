@@ -21,6 +21,7 @@ import {
   formatStatUpdDt,
   getChargerStatusMeta,
   getChargerTypeLabel,
+  getOperatorShortName,
   isMobileDevice,
   isTeslaStation,
 } from '../utils/geo';
@@ -88,7 +89,19 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
               </span>
             )}
           </div>
-          <h2>{station.statNm}</h2>
+          <h2>
+            {isTesla ? (
+              <span className="operator-tag tesla" title="테슬라코리아">
+                <TeslaEmblem size={11} />
+                <span>테슬라</span>
+              </span>
+            ) : (
+              <span className="operator-tag" title={station.busiNm}>
+                {getOperatorShortName(station)}
+              </span>
+            )}
+            {station.statNm}
+          </h2>
         </div>
         <button
           type="button"
