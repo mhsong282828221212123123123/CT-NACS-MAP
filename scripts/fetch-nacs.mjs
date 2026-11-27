@@ -106,10 +106,21 @@ function parseNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function formatFloorLabel(floorType, floorNum) {
+  const num = normalizeText(floorNum);
+  const type = normalizeText(floorType).toUpperCase();
+  if (!num) return '';
+  const prefix = type === 'B' ? '지하 ' : type === 'F' ? '지상 ' : '';
+  const suffix = num.endsWith('층') ? '' : '층';
+  return `${prefix}${num}${suffix}`;
+}
+
 function groupNacsStations(rawItems) {
   const stationMap = new Map();
 
   for (const item of rawItems) {
+    if (normalizeText(item.delYn).toUpperCase() === 'Y') continue;
+
     const chgerType = normalizeText(item.chgerType).padStart(2, '0');
     if (!NACS_TYPES.has(chgerType)) continue;
 
@@ -122,6 +133,8 @@ function groupNacsStations(rawItems) {
     const statId = normalizeText(item.statId);
     if (!statId) continue;
 
+    const floorLabel = formatFloorLabel(item.floorType, item.floorNum);
+
     let station = stationMap.get(statId);
     if (!station) {
       station = {
@@ -130,9 +143,11 @@ function groupNacsStations(rawItems) {
         addr: normalizeText(item.addr),
         addrDetail: normalizeText(item.addrDetail),
         location: normalizeText(item.location),
+        floorLabel,
         lat,
         lng,
         useTime: normalizeText(item.useTime) || '확인 필요',
+        busiId: normalizeText(item.busiId),
         busiNm: normalizeText(item.busiNm) || normalizeText(item.bnm) || '운영기관 미상',
         busiCall: normalizeText(item.busiCall),
         parkingFree: normalizeText(item.parkingFree) || 'N',
@@ -149,6 +164,9 @@ function groupNacsStations(rawItems) {
         chargers: [],
       };
       stationMap.set(statId, station);
+    } else {
+      if (!station.floorLabel && floorLabel) station.floorLabel = floorLabel;
+      if (!station.busiId) station.busiId = normalizeText(item.busiId);
     }
 
     const output = parseNumber(item.output);

@@ -13,9 +13,11 @@ export interface NacsStation {
   addr: string;
   addrDetail?: string;
   location: string;
+  floorLabel?: string;
   lat: number;
   lng: number;
   useTime: string;
+  busiId?: string;
   busiNm: string;
   busiCall: string;
   parkingFree: string;

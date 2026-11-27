@@ -64,9 +64,13 @@ export function StationDetail({ station, onClose }: StationDetailProps) {
           <MapPin size={15} />
           <div>
             <div>{station.addr || '주소 정보 없음'}</div>
-            {(station.addrDetail || station.location) && (
+            {(station.addrDetail || station.floorLabel || station.location) && (
               <div className="detail-subtext">
-                {[station.addrDetail, station.location].filter(Boolean).join(' · ')}
+                {Array.from(
+                  new Set(
+                    [station.addrDetail, station.floorLabel, station.location].filter(Boolean),
+                  ),
+                ).join(' · ')}
               </div>
             )}
           </div>

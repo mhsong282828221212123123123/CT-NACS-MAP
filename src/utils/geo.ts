@@ -51,6 +51,8 @@ export interface ChargerStatusMeta {
 
 export function getChargerStatusMeta(stat: string): ChargerStatusMeta {
   switch (stat) {
+    case '0':
+      return { label: '알수없음', tone: 'offline' };
     case '1':
       return { label: '통신이상', tone: 'offline' };
     case '2':
@@ -61,6 +63,8 @@ export function getChargerStatusMeta(stat: string): ChargerStatusMeta {
       return { label: '운영중지', tone: 'offline' };
     case '5':
       return { label: '점검중', tone: 'warning' };
+    case '6':
+      return { label: '예약중', tone: 'warning' };
     case '9':
     default:
       return { label: '상태미확인', tone: 'offline' };
