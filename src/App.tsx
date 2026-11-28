@@ -660,7 +660,7 @@ export function App() {
       <header className="top-bar">
         <div className="brand">
           <img
-            src={`${import.meta.env.BASE_URL}icon-192.png`}
+            src={`${import.meta.env.BASE_URL}icon-192.png?v=2`}
             alt="CT-NACS-MAP 아이콘"
             className="brand-icon-img"
             width={34}
