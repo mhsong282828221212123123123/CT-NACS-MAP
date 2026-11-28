@@ -5,9 +5,9 @@ const KV_SNAPSHOT_KEY = 'status_snapshot';
 const KV_MASTER_INDEX_KEY = 'master_index';
 
 const MASTER_TTL_MS = 6 * 60 * 60 * 1000;
-const BATCH_SIZE = 40;
-const BATCH_CONCURRENCY = 8;
-const MAX_STATUS_PAGES = 3;
+const BATCH_SIZE = 25;
+const BATCH_CONCURRENCY = 4;
+const MAX_STATUS_PAGES = 5;
 const PERIOD_MINUTES = '10';
 const NUM_OF_ROWS = 9999;
 const STATION_CACHE_TTL_SECONDS = 30;
@@ -80,7 +80,7 @@ async function requestSinglePage(endpoint, encodedKey, pageNo, extraParams, maxR
           Accept: 'application/json',
           'User-Agent': 'CT-NACS-MAP-Worker/1.0',
         },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(22000),
       });
 
       const text = await res.text();
@@ -172,6 +172,29 @@ function extractChargerState(item) {
     lastTsdt: normalizeText(item.lastTsdt),
     lastTedt: normalizeText(item.lastTedt),
     nowTsdt: normalizeText(item.nowTsdt),
+  };
+}
+
+function pickNewerText(a, b) {
+  if (a && b) return a >= b ? a : b;
+  return a || b || '';
+}
+
+function mergeChargerRecords(prev, incoming) {
+  if (!prev) return incoming;
+  if (!incoming) return prev;
+  const prevUpd = prev.statUpdDt || '';
+  const nextUpd = incoming.statUpdDt || '';
+  const keepPrev = Boolean(prevUpd && nextUpd && nextUpd < prevUpd);
+  const winningStat = keepPrev ? prev.stat : incoming.stat || prev.stat || '0';
+  const winningUpd = keepPrev ? prevUpd : nextUpd || prevUpd;
+  const nowTsdt = winningStat === '3' ? pickNewerText(prev.nowTsdt, incoming.nowTsdt) : '';
+  return {
+    stat: winningStat,
+    statUpdDt: winningUpd,
+    lastTsdt: pickNewerText(prev.lastTsdt, incoming.lastTsdt),
+    lastTedt: pickNewerText(prev.lastTedt, incoming.lastTedt),
+    nowTsdt,
   };
 }
 
@@ -280,31 +303,8 @@ async function runSync(env) {
   }
 
   let periodMatched = 0;
-  try {
-    const firstPage = await fetchEvChargerPage(
-      STATUS_ENDPOINT,
-      apiKey,
-      1,
-      { period: PERIOD_MINUTES },
-      2,
-    );
-    const totalPages = Math.min(
-      MAX_STATUS_PAGES,
-      Math.max(1, Math.ceil(firstPage.totalCount / NUM_OF_ROWS)),
-    );
-    const statusItems = [...firstPage.items];
-    for (let pageNo = 2; pageNo <= totalPages; pageNo++) {
-      const page = await fetchEvChargerPage(
-        STATUS_ENDPOINT,
-        apiKey,
-        pageNo,
-        { period: PERIOD_MINUTES },
-        2,
-      );
-      statusItems.push(...page.items);
-    }
-
-    for (const item of statusItems) {
+  const applyPeriodItems = (items) => {
+    for (const item of items) {
       const statId = normalizeText(item.statId);
       const chgerId = normalizeText(item.chgerId);
       if (!statId || !chgerId || !stations[statId]) continue;
@@ -313,17 +313,45 @@ async function runSync(env) {
 
       const nextStat = normalizeText(item.stat) || '0';
       const nextUpd = normalizeText(item.statUpdDt);
-      if (prev.statUpdDt && nextUpd && nextUpd < prev.statUpdDt) {
-        continue;
-      }
-
-      stations[statId].chargers[chgerId] = {
-        ...prev,
+      stations[statId].chargers[chgerId] = mergeChargerRecords(prev, {
         stat: nextStat,
-        statUpdDt: nextUpd || prev.statUpdDt,
-        nowTsdt: nextStat === '3' ? prev.nowTsdt : '',
-      };
+        statUpdDt: nextUpd,
+        lastTsdt: '',
+        lastTedt: '',
+        nowTsdt: '',
+      });
       periodMatched += 1;
+    }
+  };
+
+  try {
+    const firstPage = await fetchEvChargerPage(
+      STATUS_ENDPOINT,
+      apiKey,
+      1,
+      { period: PERIOD_MINUTES },
+      2,
+    );
+    applyPeriodItems(firstPage.items);
+
+    const totalPages = Math.min(
+      MAX_STATUS_PAGES,
+      Math.max(1, Math.ceil(firstPage.totalCount / NUM_OF_ROWS)),
+    );
+    if (totalPages > 1) {
+      const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+      const pageResults = await Promise.allSettled(
+        pageNumbers.map((pageNo) =>
+          fetchEvChargerPage(STATUS_ENDPOINT, apiKey, pageNo, { period: PERIOD_MINUTES }, 1),
+        ),
+      );
+      for (const res of pageResults) {
+        if (res.status === 'fulfilled') {
+          applyPeriodItems(res.value.items);
+        } else {
+          console.warn('period page warning:', res.reason?.message ?? res.reason);
+        }
+      }
     }
   } catch (err) {
     console.warn('period sync warning:', err?.message ?? err);
@@ -359,26 +387,7 @@ async function runSync(env) {
             const prev = stations[statId].chargers[chgerId];
             if (!chgerId || !prev) continue;
             const nextState = extractChargerState(item);
-            const keepPrev =
-              Boolean(prev.statUpdDt && nextState.statUpdDt && nextState.statUpdDt < prev.statUpdDt);
-            const winningStat = keepPrev ? prev.stat : nextState.stat;
-            const winningUpd = keepPrev ? prev.statUpdDt : nextState.statUpdDt || prev.statUpdDt;
-            const winningLastTsdt =
-              prev.lastTsdt && (!nextState.lastTsdt || prev.lastTsdt > nextState.lastTsdt)
-                ? prev.lastTsdt
-                : nextState.lastTsdt || prev.lastTsdt;
-            const winningLastTedt =
-              prev.lastTedt && (!nextState.lastTedt || prev.lastTedt > nextState.lastTedt)
-                ? prev.lastTedt
-                : nextState.lastTedt || prev.lastTedt;
-
-            stations[statId].chargers[chgerId] = {
-              stat: winningStat,
-              statUpdDt: winningUpd,
-              lastTsdt: winningLastTsdt,
-              lastTedt: winningLastTedt,
-              nowTsdt: winningStat === '3' ? nextState.nowTsdt || prev.nowTsdt : '',
-            };
+            stations[statId].chargers[chgerId] = mergeChargerRecords(prev, nextState);
           }
           batchSucceeded += 1;
         } catch (err) {
@@ -466,7 +475,7 @@ export default {
         }
 
         const cacheKey = new Request(
-          `https://cache.ct-nacs-status.local/station?statId=${encodeURIComponent(statId)}`,
+          `https://cache.ct-nacs-status.local/v2/station?statId=${encodeURIComponent(statId)}`,
         );
         const cachedRes = await caches.default.match(cacheKey);
         if (cachedRes) {
@@ -482,20 +491,26 @@ export default {
           });
         }
 
-        const page = await fetchEvChargerPage(
-          INFO_ENDPOINT,
-          apiKey,
-          1,
-          { statId, numOfRows: '100' },
-          2,
-        );
+        const [page, snapshot] = await Promise.all([
+          fetchEvChargerPage(INFO_ENDPOINT, apiKey, 1, { statId, numOfRows: '100' }, 2),
+          env.STATUS_KV
+            ? env.STATUS_KV.get(KV_SNAPSHOT_KEY, { type: 'json' }).catch(() => null)
+            : Promise.resolve(null),
+        ]);
 
-        const chargers = {};
+        const infoChargers = {};
         for (const item of page.items) {
           if (normalizeText(item.statId) !== statId) continue;
           const chgerId = normalizeText(item.chgerId);
           if (!chgerId) continue;
-          chargers[chgerId] = extractChargerState(item);
+          infoChargers[chgerId] = extractChargerState(item);
+        }
+
+        const kvChargers = snapshot?.stations?.[statId]?.chargers ?? {};
+        const chargers = {};
+        const allIds = new Set([...Object.keys(kvChargers), ...Object.keys(infoChargers)]);
+        for (const chgerId of allIds) {
+          chargers[chgerId] = mergeChargerRecords(kvChargers[chgerId], infoChargers[chgerId]);
         }
 
         const payload = {

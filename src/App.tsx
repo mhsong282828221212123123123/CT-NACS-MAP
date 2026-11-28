@@ -60,27 +60,30 @@ interface LiveStatusSnapshot {
   stations?: Record<string, { chargers?: Record<string, LiveChargerPatch> }>;
 }
 
+function pickNewerText(a?: string, b?: string): string {
+  if (a && b) return a >= b ? a : b;
+  return a || b || '';
+}
+
 function applyChargerPatch(
   charger: NacsStation['chargers'][number],
   patch: LiveChargerPatch,
   preferNewer = false,
 ) {
-  if (
+  const keepCurrent = Boolean(
     preferNewer &&
-    charger.statUpdDt &&
-    patch.statUpdDt &&
-    patch.statUpdDt < charger.statUpdDt
-  ) {
-    return charger;
-  }
-  const nextStat = patch.stat || charger.stat;
+      charger.statUpdDt &&
+      patch.statUpdDt &&
+      patch.statUpdDt < charger.statUpdDt,
+  );
+  const nextStat = keepCurrent ? charger.stat : patch.stat || charger.stat;
   return {
     ...charger,
     stat: nextStat,
-    statUpdDt: patch.statUpdDt || charger.statUpdDt,
-    lastTsdt: patch.lastTsdt || charger.lastTsdt,
-    lastTedt: patch.lastTedt || charger.lastTedt,
-    nowTsdt: nextStat === '3' ? patch.nowTsdt || charger.nowTsdt : '',
+    statUpdDt: keepCurrent ? charger.statUpdDt : patch.statUpdDt || charger.statUpdDt,
+    lastTsdt: pickNewerText(charger.lastTsdt, patch.lastTsdt),
+    lastTedt: pickNewerText(charger.lastTedt, patch.lastTedt),
+    nowTsdt: nextStat === '3' ? pickNewerText(charger.nowTsdt, patch.nowTsdt) : '',
   };
 }
 
@@ -136,7 +139,7 @@ function mergeSingleStationStatus(
     let chargingCount = 0;
     const chargers = st.chargers.map((ch) => {
       const chPatch = liveChargers[ch.chgerId];
-      const next = chPatch ? applyChargerPatch(ch, chPatch, false) : ch;
+      const next = chPatch ? applyChargerPatch(ch, chPatch, true) : ch;
       if (next.stat === '2') availableCount += 1;
       if (next.stat === '3') chargingCount += 1;
       return next;
