@@ -1303,95 +1303,100 @@ body,
   .detail-sheet {
     right: 24px;
     bottom: 24px;
-    width: 520px;
+    width: 620px;
     max-width: calc(100% - 48px);
     max-height: calc(100% - 48px);
-    padding: 22px 24px;
-    border-radius: 20px;
-    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+    padding: 26px 28px;
+    border-radius: 22px;
+    box-shadow: 0 22px 52px rgba(15, 23, 42, 0.25);
   }
 
   .detail-title-group h2 {
-    font-size: 21px;
-    margin-top: 8px;
+    font-size: 25px;
+    margin-top: 10px;
+  }
+
+  .detail-title-group .operator-tag {
+    font-size: 13px;
+    padding: 3px 9px;
   }
 
   .badge {
-    font-size: 12px;
-    padding: 3px 10px;
-  }
-
-  .icon-close-btn {
-    width: 34px;
-    height: 34px;
-  }
-
-  .detail-summary-row {
     font-size: 14px;
-    gap: 10px;
-    margin-top: 12px;
-  }
-
-  .status-pill {
     padding: 4px 12px;
   }
 
+  .icon-close-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .detail-summary-row {
+    font-size: 16px;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .status-pill {
+    padding: 5px 14px;
+  }
+
   .detail-info-list {
-    font-size: 14px;
-    gap: 10px;
-    margin-top: 16px;
+    font-size: 16px;
+    gap: 12px;
+    margin-top: 18px;
   }
 
   .detail-subtext {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .charger-list-section {
-    margin-top: 18px;
-    padding-top: 16px;
+    margin-top: 22px;
+    padding-top: 18px;
   }
 
   .charger-list-title {
-    font-size: 14px;
-    margin-bottom: 10px;
+    font-size: 17px;
+    margin-bottom: 12px;
   }
 
   .charger-sync-time {
-    font-size: 12px;
-    padding: 2px 8px;
+    font-size: 14px;
+    padding: 3px 10px;
   }
 
   .charger-grid {
-    gap: 10px;
+    gap: 12px;
   }
 
   .charger-item {
-    padding: 12px 14px;
-    border-radius: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
   }
 
   .charger-item-top {
-    font-size: 14px;
+    font-size: 17px;
   }
 
   .charger-item-meta {
-    font-size: 13px;
-    margin-top: 5px;
+    font-size: 15px;
+    margin-top: 6px;
   }
 
   .charger-updated {
-    font-size: 12px;
-    margin-top: 5px;
+    font-size: 14px;
+    margin-top: 6px;
   }
 
   .sc-info-note {
-    font-size: 13px;
-    padding: 12px 14px;
+    font-size: 15px;
+    padding: 14px 16px;
   }
 }
 
 @media (min-width: 1400px) {
   .detail-sheet {
-    width: 560px;
+    width: 680px;
   }
 }
