@@ -1298,3 +1298,100 @@ body,
     justify-content: flex-end;
   }
 }
+
+@media (min-width: 821px) {
+  .detail-sheet {
+    right: 24px;
+    bottom: 24px;
+    width: 520px;
+    max-width: calc(100% - 48px);
+    max-height: calc(100% - 48px);
+    padding: 22px 24px;
+    border-radius: 20px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+  }
+
+  .detail-title-group h2 {
+    font-size: 21px;
+    margin-top: 8px;
+  }
+
+  .badge {
+    font-size: 12px;
+    padding: 3px 10px;
+  }
+
+  .icon-close-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .detail-summary-row {
+    font-size: 14px;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .status-pill {
+    padding: 4px 12px;
+  }
+
+  .detail-info-list {
+    font-size: 14px;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .detail-subtext {
+    font-size: 13px;
+  }
+
+  .charger-list-section {
+    margin-top: 18px;
+    padding-top: 16px;
+  }
+
+  .charger-list-title {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  .charger-sync-time {
+    font-size: 12px;
+    padding: 2px 8px;
+  }
+
+  .charger-grid {
+    gap: 10px;
+  }
+
+  .charger-item {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+
+  .charger-item-top {
+    font-size: 14px;
+  }
+
+  .charger-item-meta {
+    font-size: 13px;
+    margin-top: 5px;
+  }
+
+  .charger-updated {
+    font-size: 12px;
+    margin-top: 5px;
+  }
+
+  .sc-info-note {
+    font-size: 13px;
+    padding: 12px 14px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .detail-sheet {
+    width: 560px;
+  }
+}
